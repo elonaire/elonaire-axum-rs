@@ -8,12 +8,21 @@ use lib::utils::auth::{AuthClaim, SymKey};
 use surrealdb::{engine::remote::ws::Client, Surreal};
 
 use crate::{
-    auth::oauth::{decode_token, initiate_auth_code_grant_flow, navigate_to_redirect_url},
     graphql::schemas::{
         role::SystemRole,
-        user::{AuthDetails, SurrealRelationQueryResponse, User, UserLogins},
+        user::{AccountStatus, AuthDetails, SurrealRelationQueryResponse, User, UserLogins, UserUpdate},
+    },
+    middleware::oauth::{
+        confirm_auth, decode_token, get_user_id_from_token, initiate_auth_code_grant_flow,
+        navigate_to_redirect_url,
     },
 };
+
+// #[derive(Serialize)]
+// struct Credentials<'a> {
+//     username: &'a str,
+//     password: &'a str,
+// }
 
 pub struct Mutation;
 
@@ -27,11 +36,10 @@ impl Mutation {
 
         // User signup
         let db = ctx.data::<Extension<Arc<Surreal<Client>>>>().unwrap();
+
         let response: Vec<User> = db
             .create("user")
             .content(User {
-                created_at: Some(chrono::Utc::now().to_rfc3339()),
-                updated_at: Some(chrono::Utc::now().to_rfc3339()),
                 oauth_client: None,
                 ..user
             })
@@ -46,14 +54,21 @@ impl Mutation {
         ctx: &Context<'_>,
         role: SystemRole,
     ) -> Result<Vec<SystemRole>> {
-        let db = ctx.data::<Extension<Arc<Surreal<Client>>>>().unwrap();
-        let response = db
-            .create("role")
-            .content(SystemRole { ..role })
-            .await
-            .map_err(|e| Error::new(e.to_string()))?;
+        let check_auth = confirm_auth(ctx).await;
 
-        Ok(response)
+        match check_auth {
+            Ok(_) => {
+                let db = ctx.data::<Extension<Arc<Surreal<Client>>>>().unwrap();
+                let response = db
+                    .create("role")
+                    .content(SystemRole { ..role })
+                    .await
+                    .map_err(|e| Error::new(e.to_string()))?;
+
+                Ok(response)
+            }
+            _ => return Err(Error::new("Unauthorized")),
+        }
     }
 
     async fn sign_in(
@@ -92,7 +107,7 @@ impl Mutation {
                         )
                         .unwrap();
 
-                        if password_match {
+                        if password_match && user.status == AccountStatus::Active {
                             let refresh_token_expiry_duration =
                                 Duration::from_secs(30 * 24 * 60 * 60); // minutes by 60 seconds
                             let key: Vec<u8>;
@@ -226,7 +241,7 @@ impl Mutation {
                                 url: None,
                             })
                         } else {
-                            Err(Error::new("Invalid username or password"))
+                            Err(Error::new("Invalid username or password OR Unauthorized access(contact admin)."))
                         }
                     }
                     None => Err(Error::new("Invalid username or password")),
@@ -244,14 +259,54 @@ impl Mutation {
     async fn decode_token(&self, ctx: &Context<'_>) -> Result<String> {
         match ctx.data_opt::<HeaderMap>() {
             Some(headers) => {
-                let token = decode_token(ctx, headers.get("Authorization").unwrap()).await;
+                let token_claims = decode_token(ctx, headers.get("Authorization").unwrap()).await;
 
-                match token {
-                    Ok(token) => Ok(token.subject.unwrap()),
+                match token_claims {
+                    Ok(token_claims) => Ok(token_claims.subject.unwrap()),
                     Err(e) => Err(e),
                 }
             }
             None => Err(Error::new("No headers found")),
+        }
+    }
+
+    async fn update_user(
+        &self,
+        ctx: &Context<'_>,
+        mut user: UserUpdate,
+        user_id: String,
+    ) -> Result<Vec<User>> {
+        let check_auth = confirm_auth(ctx).await;
+
+        match check_auth {
+            Ok(_) => {
+                let db = ctx.data::<Extension<Arc<Surreal<Client>>>>().unwrap();
+
+                let user_id_from_token = get_user_id_from_token(ctx).await.unwrap();
+
+                if user_id_from_token != user_id {
+                    return Err(Error::new("Unauthorized"));
+                }
+
+                if user.password.is_some() {
+                    user.password =
+                        Some(bcrypt::hash(user.password.unwrap(), bcrypt::DEFAULT_COST).unwrap());
+                }
+
+                // user.updated_at = Some(chrono::Utc::now().to_rfc3339());
+
+                println!("user: {:?}", user);
+
+                let response = db
+                    .update("user")
+                    .merge(user)
+                    // .patch(PatchOp::replace("/updated_at", chrono::Utc::now().to_rfc3339()))
+                    .await
+                    .map_err(|e| Error::new(e.to_string()))?;
+
+                Ok(response)
+            }
+            _ => return Err(Error::new("Unauthorized")),
         }
     }
 }

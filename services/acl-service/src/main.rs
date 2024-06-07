@@ -1,4 +1,4 @@
-mod auth;
+mod middleware;
 mod database;
 mod graphql;
 
@@ -31,7 +31,7 @@ use tower_http::cors::CorsLayer;
 
 use graphql::resolvers::mutation::Mutation;
 
-use crate::auth::oauth::{initiate_auth_code_grant_flow, OAuthClientName};
+use crate::middleware::oauth::{initiate_auth_code_grant_flow, OAuthClientName};
 
 type MySchema = Schema<Query, Mutation, EmptySubscription>;
 
@@ -111,7 +111,7 @@ async fn main() -> Result<()> {
     let origins = [
         "http://localhost:8080".parse::<HeaderValue>().unwrap(),
         "http://localhost:3002".parse::<HeaderValue>().unwrap(),
-        "http://127.0.0.1:8080".parse::<HeaderValue>().unwrap(),
+        "http://localhost:3003".parse::<HeaderValue>().unwrap(),
     ];
 
     let app = Router::new()

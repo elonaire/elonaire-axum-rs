@@ -5,12 +5,26 @@ use chrono::{DateTime, Datelike, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
 
-use crate::auth::oauth::OAuthClientName;
+use crate::middleware::oauth::OAuthClientName;
 
 #[derive(Clone, Debug, Serialize, Deserialize, Enum, Copy, Eq, PartialEq)]
 pub enum Gender {
+    #[graphql(name = "Male")]
     Male,
+    #[graphql(name = "Female")]
     Female,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, Enum, Copy, Eq, PartialEq)]
+pub enum AccountStatus {
+    #[graphql(name = "Active")]
+    Active,
+    #[graphql(name = "Inactive")]
+    Inactive,
+    #[graphql(name = "Suspended")]
+    Suspended,
+    #[graphql(name = "Deleted")]
+    Deleted,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, SimpleObject, InputObject)]
@@ -32,6 +46,7 @@ pub struct User {
     pub password: String,
     pub created_at: Option<String>,
     pub updated_at: Option<String>,
+    pub status: AccountStatus,
     #[graphql(skip)]
     pub roles: Option<Vec<Thing>>,
     pub oauth_client: Option<OAuthClientName>,
@@ -39,10 +54,6 @@ pub struct User {
     pub bio: Option<String>,
     pub website: Option<String>,
     pub address: Option<String>,
-    #[graphql(skip)]
-    pub professional_details: Option<Thing>,
-    #[graphql(skip)]
-    pub portfolio: Option<Vec<Thing>>,
 }
 
 #[ComplexObject]
@@ -63,7 +74,7 @@ impl User {
     async fn age(&self) -> u32 {
         // calculate age from &self.dob
         let dob = DateTime::parse_from_rfc3339(&self.dob).expect("Invalid date format");
-        let from_ymd = NaiveDate::from_ymd_opt(dob.year(), dob.month0(), dob.day0()).unwrap();
+        let from_ymd = NaiveDate::from_ymd_opt(dob.year(), dob.month(), dob.day()).unwrap();
         let today = Utc::now().date_naive();
         today.years_since(from_ymd).unwrap()
     }
@@ -189,30 +200,31 @@ pub struct Profession {
 #[derive(Clone, Debug, Serialize, Deserialize, SimpleObject, InputObject)]
 #[graphql(input_name = "UserUpdateInput")]
 pub struct UserUpdate {
-    pub user_name: String,
-    pub first_name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub first_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub middle_name: Option<String>,
-    pub last_name: String,
-    pub gender: Gender,
-    pub dob: String,
-    pub email: String,
-    pub country: String,
-    pub phone: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gender: Option<Gender>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub country: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub phone: Option<String>,
     #[graphql(secret)]
-    pub password: String,
-    pub created_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub password: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub updated_at: Option<String>,
-    #[graphql(skip)]
-    pub roles: Option<Vec<Thing>>,
-    pub oauth_client: Option<OAuthClientName>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub profile_picture: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub bio: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub website: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub address: Option<String>,
-    #[graphql(skip)]
-    pub professional_details: Option<Thing>,
-    #[graphql(skip)]
-    pub portfolio: Option<Vec<Thing>>,
 }
 
 pub type SurrealRelationQueryResponse<T> = HashMap<String, HashMap<String, Vec<T>>>;
