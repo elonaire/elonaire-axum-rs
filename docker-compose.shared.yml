@@ -5,21 +5,6 @@ networks:
     driver: bridge
 
 services:
-  tt-shared-servicedb:
-    image: surrealdb/surrealdb:v1.5.1
-    ports:
-      - 8001:8001
-    container_name: tt-shared-servicedb
-    networks:
-      - app-tier
-    user: root
-    command: start --log debug --auth --user ${DATABASE_USER} --pass ${DATABASE_PASSWORD} --bind 0.0.0.0:8001 file:/db-data/mydatabase.db
-    volumes:
-      - tt-shared-servicedb:/db-data
-    environment:
-      - DATABASE_USER=${DATABASE_USER}
-      - DATABASE_PASSWORD=${DATABASE_PASSWORD}
-
   tt-shared-service:
     image: elonaire/tt-shared-service:latest
     pull_policy: always
@@ -40,8 +25,7 @@ services:
       - DATABASE_PORT_SHARED=${DATABASE_PORT_SHARED}
       - OAUTH_SERVICE=${OAUTH_SERVICE}
       - DATABASE_SCHEMA_FILE_PATH=${DATABASE_SCHEMA_FILE_PATH}
-    depends_on:
-      - tt-shared-servicedb
+      - BLOG_POSTS_DIR=${BLOG_POSTS_DIR}
 
 volumes:
     tt-shared-servicedb:
