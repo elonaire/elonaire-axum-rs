@@ -17,9 +17,9 @@ services:
         limits:
           cpus: '0.5'
           memory: 200M
-    # ports:
-    #   - "80:80"
-    #   - "443:443" # Uncomment this line if you want to use https
+    ports:
+      - "80-83:80"
+      - "443-446:443" # Uncomment this line if you want to use https
     depends_on:
       - tt-acl-service
       - tt-shared-service
