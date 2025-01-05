@@ -7,6 +7,7 @@ use axum::Extension;
 use lib::utils::custom_error::ExtendedError;
 use surrealdb::{engine::remote::ws::Client as SurrealClient, Surreal};
 
+use crate::graphql::schemas::blog::BlogPost;
 use crate::graphql::schemas::{blog, shared, user};
 use crate::graphql::schemas::user::UserProfessionalInfo;
 use crate::middleware::auth::check_auth_from_acl;
@@ -49,11 +50,11 @@ impl Mutation {
                     BEGIN TRANSACTION;
                     LET $professional_details = CREATE professional_details CONTENT $professional_details_input;
                     LET $user = (SELECT id FROM type::table($table) WHERE user_id = $user_id LIMIT 1);
-                    
+
                     LET $professional_details_id = (SELECT VALUE id FROM $professional_details);
                     RELATE $user->has_professional_details->$professional_details_id;
                     RETURN $professional_details;
-                    COMMIT TRANSACTION;    
+                    COMMIT TRANSACTION;
                     "
                 )
                 .bind(("professional_details_input", professional_details))
@@ -102,11 +103,11 @@ impl Mutation {
                     BEGIN TRANSACTION;
                     LET $user_service = CREATE service CONTENT $user_service_input;
                     LET $user = (SELECT id FROM type::table($table) WHERE user_id = $user_id LIMIT 1);
-                    
+
                     LET $user_service_id = (SELECT VALUE id FROM $user_service);
                     RELATE $user->offers_service->$user_service_id;
                     RETURN $user_service;
-                    COMMIT TRANSACTION;    
+                    COMMIT TRANSACTION;
                     "
                 )
                 .bind(("user_service_input", user_service))
@@ -155,11 +156,11 @@ impl Mutation {
                     BEGIN TRANSACTION;
                     LET $portfolio_item = CREATE portfolio CONTENT $portfolio_item_input;
                     LET $user = (SELECT id FROM type::table($table) WHERE user_id = $user_id LIMIT 1);
-                    
+
                     LET $portfolio_item_id = (SELECT VALUE id FROM $portfolio_item);
                     RELATE $user->has_portfolio->$portfolio_item_id;
                     RETURN $portfolio_item;
-                    COMMIT TRANSACTION;    
+                    COMMIT TRANSACTION;
                     "
                 )
                 .bind(("portfolio_item_input", portfolio_item))
@@ -208,11 +209,11 @@ impl Mutation {
                     BEGIN TRANSACTION;
                     LET $resume_item = CREATE resume CONTENT $resume_item_input;
                     LET $user = (SELECT id FROM type::table($table) WHERE user_id = $user_id LIMIT 1);
-                    
+
                     LET $resume_item_id = (SELECT VALUE id FROM $resume_item);
                     RELATE $user->has_resume->$resume_item_id;
                     RETURN $resume_item;
-                    COMMIT TRANSACTION;    
+                    COMMIT TRANSACTION;
                     "
                 )
                 .bind(("resume_item_input", resume_item))
@@ -262,11 +263,11 @@ impl Mutation {
                     BEGIN TRANSACTION;
                     LET $resume_item_achievement = CREATE achievement CONTENT $resume_item_achievement_input;
                     LET $resume = (SELECT id FROM type::table($table) WHERE id = type::thing($resume_id) LIMIT 1);
-                    
+
                     LET $resume_item_achievement_id = (SELECT VALUE id FROM $resume_item_achievement);
                     RELATE $resume->has_achievement->$resume_item_achievement_id;
                     RETURN $resume_item_achievement;
-                    COMMIT TRANSACTION;    
+                    COMMIT TRANSACTION;
                     "
                 )
                 .bind(("resume_item_achievement_input", resume_item_achievement))
@@ -315,11 +316,11 @@ impl Mutation {
                     BEGIN TRANSACTION;
                     LET $skill = CREATE skill CONTENT $skill_input;
                     LET $user = (SELECT id FROM type::table($table) WHERE user_id = $user_id LIMIT 1);
-                    
+
                     LET $skill_id = (SELECT VALUE id FROM $skill);
                     RELATE $user->has_skill->$skill_id;
                     RETURN $skill;
-                    COMMIT TRANSACTION;    
+                    COMMIT TRANSACTION;
                     "
                 )
                 .bind(("skill_input", skill))
@@ -368,11 +369,11 @@ impl Mutation {
                     BEGIN TRANSACTION;
                     LET $blog_post = CREATE blog_post CONTENT $blog_post_input;
                     LET $user = (SELECT id FROM type::table($table) WHERE user_id = $user_id LIMIT 1);
-                    
+
                     LET $blog_post_id = (SELECT VALUE id FROM $blog_post);
                     RELATE $user->has_blog_post->$blog_post_id;
                     RETURN $blog_post;
-                    COMMIT TRANSACTION;    
+                    COMMIT TRANSACTION;
                     "
                 )
                 .bind(("blog_post_input", blog_post))
@@ -428,7 +429,7 @@ impl Mutation {
                     -- Create comment
                     LET $blog_comment = CREATE comment CONTENT $blog_comment_input;
                     LET $blog_comment_id = (SELECT VALUE id FROM $blog_comment);
-                    
+
                     -- Relate the comment to the blog post
                     RELATE $blog_post->has_comment->$blog_comment_id;
                     -- Relate the comment to the user
@@ -493,7 +494,7 @@ impl Mutation {
                     -- Create comment reply
                     LET $comment_reply = CREATE comment CONTENT $blog_comment_input;
                     LET $comment_reply_id = (SELECT VALUE id FROM $comment_reply);
-                    
+
                     -- Relate the comment reply to the parent comment and the user
                     RELATE $parent_comment->has_reply->$comment_reply_id;
                     RELATE $user->has_comment->$comment_reply_id;
@@ -558,7 +559,7 @@ impl Mutation {
                     -- Create reaction
                     LET $reaction = CREATE reaction CONTENT $reaction_input;
                     LET $reaction_id = (SELECT VALUE id FROM $reaction);
-                    
+
                     -- Relate the reaction to the user
                     RELATE $user->has_reaction->$reaction_id;
 
@@ -623,7 +624,7 @@ impl Mutation {
                     -- Create reaction
                     LET $reaction = CREATE reaction CONTENT $reaction_input;
                     LET $reaction_id = (SELECT VALUE id FROM $reaction);
-                    
+
                     -- Relate the reaction to the user
                     RELATE $user->has_reaction->$reaction_id;
 
@@ -664,7 +665,7 @@ impl Mutation {
             .create("message")
             .content(message)
             .await
-            .map_err(|e| Error::new(e.to_string()))?;
+            .map_err(|e| Error::new(e.to_string()))?.expect("Failed to send message");
 
         Ok(message)
     }
@@ -710,6 +711,35 @@ impl Mutation {
                 let response: Vec<user::UserSkill> = database_transaction.take(0).unwrap();
 
                 Ok(response)
+            }
+            None => Err(ExtendedError::new("Not Authorized!", Some(403.to_string())).build()),
+        }
+    }
+
+    pub async fn edit_blog_post(
+        &self,
+        ctx: &Context<'_>,
+        blog_post: blog::BlogPostUpdate,
+        blog_post_id: String,
+    ) -> async_graphql::Result<blog::BlogPost> {
+        let db = ctx
+            .data::<Extension<Arc<Surreal<SurrealClient>>>>()
+            .unwrap();
+
+        let auth_res_from_acl = check_auth_from_acl(ctx).await?;
+
+        match auth_res_from_acl {
+            Some(_) => {
+                let response: Option<BlogPost> = db
+                        .update(("blog_post", blog_post_id.clone()))
+                        .merge(blog_post)
+                        .await
+                        .map_err(|e| Error::new(e.to_string()))?;
+
+                match response {
+                    Some(blog_post) => Ok(blog_post),
+                    None => Err(ExtendedError::new("Blog post not found", Some(404.to_string())).build()),
+                }
             }
             None => Err(ExtendedError::new("Not Authorized!", Some(403.to_string())).build()),
         }

@@ -7,10 +7,19 @@ networks:
 services:
   gateway:
     image: nginx:latest
-    container_name: gateway
+    # container_name: gateway
+    restart: unless-stopped
+    deploy:
+      mode: replicated
+      replicas: 3
+      endpoint_mode: dnsrr
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 200M
     ports:
-      - "80:80"
-      - "443:443" # Uncomment this line if you want to use https
+      - "80-82:80"
+      - "443-445:443" # Uncomment this line if you want to use https
     depends_on:
       - tt-acl-service
       - tt-shared-service
@@ -24,45 +33,57 @@ services:
   tt-frontend:
     image: elonaire/tt-frontend:latest
     pull_policy: always
+    restart: unless-stopped
+    deploy:
+      mode: replicated
+      replicas: 3
+      endpoint_mode: dnsrr
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 200M
     ports:
-      - 8080:8080
-    container_name: tt-frontend
+      - "8080-8082:8080"
+    # container_name: tt-frontend
     depends_on:
       - tt-acl-service
       - tt-shared-service
     networks:
       - app-tier
   tt-acl-db:
-    image: surrealdb/surrealdb:v1.5.1
+    image: surrealdb/surrealdb:v2.1.4
+    restart: unless-stopped
     ports:
       - 8000:8000
     container_name: tt-acl-db
     networks:
       - app-tier
     user: root
-    command: start --log debug --auth --user ${DATABASE_USER} --pass ${DATABASE_PASSWORD} file:/db-data/mydatabase.db
+    command: start --log debug --user ${DATABASE_USER} --pass ${DATABASE_PASSWORD} --bind 0.0.0.0:8000 surrealkv:/db-data/mydatabase.db
     volumes:
       - tt-acl-servicedb:/db-data
     environment:
       - DATABASE_USER=${DATABASE_USER}
       - DATABASE_PASSWORD=${DATABASE_PASSWORD}
   tt-shared-servicedb:
-    image: surrealdb/surrealdb:v1.5.1
+    image: surrealdb/surrealdb:v2.1.4
+    restart: unless-stopped
     ports:
       - 8001:8001
     container_name: tt-shared-servicedb
     networks:
       - app-tier
     user: root
-    command: start --log debug --auth --user ${DATABASE_USER} --pass ${DATABASE_PASSWORD} --bind 0.0.0.0:8001 file:/db-data/mydatabase.db
+    command: start --log debug --user ${DATABASE_USER} --pass ${DATABASE_PASSWORD} --bind 0.0.0.0:8001 surrealkv:/db-data/mydatabase.db
     volumes:
       - tt-shared-servicedb:/db-data
     environment:
       - DATABASE_USER=${DATABASE_USER}
       - DATABASE_PASSWORD=${DATABASE_PASSWORD}
   tt-acl-service:
-    image: elonaire/tt-acl-service:latest
+    image: elonaire/acl-service:latest
     pull_policy: always
+    restart: unless-stopped
     ports:
       - 3001:3001
     container_name: tt-acl-service
@@ -70,9 +91,29 @@ services:
       - app-tier
     depends_on:
       - tt-acl-db
+    environment:
+      - GOOGLE_OAUTH_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID}
+      - GOOGLE_OAUTH_CLIENT_SECRET=${GOOGLE_OAUTH_CLIENT_SECRET}
+      - GOOGLE_OAUTH_AUTHORIZE_URL=${GOOGLE_OAUTH_AUTHORIZE_URL}
+      - GOOGLE_OAUTH_ACCESS_TOKEN_URL=${GOOGLE_OAUTH_ACCESS_TOKEN_URL}
+      - GOOGLE_OAUTH_REVOKE_TOKEN_URL=${GOOGLE_OAUTH_REVOKE_TOKEN_URL}
+      - GITHUB_OAUTH_CLIENT_ID=${GITHUB_OAUTH_CLIENT_ID}
+      - GITHUB_OAUTH_CLIENT_SECRET=${GITHUB_OAUTH_CLIENT_SECRET}
+      - GITHUB_OAUTH_AUTHORIZE_URL=${GITHUB_OAUTH_AUTHORIZE_URL}
+      - GITHUB_OAUTH_ACCESS_TOKEN_URL=${GITHUB_OAUTH_ACCESS_TOKEN_URL}
+      - OAUTH_REDIRECT_URI=${OAUTH_REDIRECT_URI}
+      - DATABASE_NAMESPACE=${DATABASE_NAMESPACE}
+      - DATABASE_NAME_ACL=${DATABASE_NAME_ACL}
+      - DATABASE_USER=${DATABASE_USER}
+      - DATABASE_PASSWORD=${DATABASE_PASSWORD}
+      - DATABASE_HOST_ACL=${DATABASE_HOST_ACL}
+      - DATABASE_PORT_ACL=${DATABASE_PORT_ACL}
+      - DATABASE_SCHEMA_FILE_PATH=${DATABASE_SCHEMA_FILE_PATH}
+      - SHARED_SERVICE=${SHARED_SERVICE}
   tt-shared-service:
     image: elonaire/tt-shared-service:latest
     pull_policy: always
+    restart: unless-stopped
     ports:
       - 3002:3002
     container_name: tt-shared-service
@@ -81,3 +122,22 @@ services:
     depends_on:
       - tt-acl-service
       - tt-shared-servicedb
+    volumes:
+      - ./services/shared-service/database/schemas/schemas.surql:/usr/src/db/schemas.surql
+      - ./services/shared-service/posts:/usr/src/posts
+    environment:
+      - DATABASE_NAMESPACE=${DATABASE_NAMESPACE}
+      - DATABASE_NAME_SHARED=${DATABASE_NAME_SHARED}
+      - DATABASE_USER=${DATABASE_USER}
+      - DATABASE_PASSWORD=${DATABASE_PASSWORD}
+      - DATABASE_HOST_SHARED=${DATABASE_HOST_SHARED}
+      - DATABASE_PORT_SHARED=${DATABASE_PORT_SHARED}
+      - OAUTH_SERVICE=${OAUTH_SERVICE}
+      - DATABASE_SCHEMA_FILE_PATH=${DATABASE_SCHEMA_FILE_PATH}
+      - BLOG_POSTS_DIR=${BLOG_POSTS_DIR}
+
+
+# Add any network or volume configurations if needed
+volumes:
+    tt-shared-servicedb:
+    tt-acl-servicedb:

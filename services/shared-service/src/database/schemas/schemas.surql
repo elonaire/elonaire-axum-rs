@@ -27,7 +27,7 @@ DEFINE FIELD updated_at ON TABLE professional_details TYPE datetime
   VALUE time::now();
 
 -- Relationship between user and professional_details
-DEFINE TABLE has_professional_details SCHEMAFULL;
+DEFINE TABLE has_professional_details SCHEMAFULL TYPE RELATION;
 DEFINE INDEX userProfessionalDetailsIndex ON TABLE has_professional_details
 COLUMNS in, out UNIQUE;
 DEFINE INDEX userIdIndex ON TABLE has_professional_details
@@ -56,7 +56,7 @@ DEFINE FIELD updated_at ON TABLE portfolio TYPE datetime
   VALUE time::now();
 
 -- Relationship between user and portfolio
-DEFINE TABLE has_portfolio SCHEMAFULL;
+DEFINE TABLE has_portfolio SCHEMAFULL TYPE RELATION;
 DEFINE INDEX userPortfolioIndex ON TABLE has_portfolio
 COLUMNS in, out UNIQUE;
 DEFINE FIELD in ON TABLE has_portfolio TYPE record<user_id>;
@@ -92,14 +92,14 @@ DEFINE FIELD updated_at ON TABLE achievement TYPE datetime
   VALUE time::now();
 
 -- Relationship between resume and achievement
-DEFINE TABLE has_achievement SCHEMAFULL;
+DEFINE TABLE has_achievement SCHEMAFULL TYPE RELATION;
 DEFINE INDEX resumeAchievementIndex ON TABLE has_achievement
 COLUMNS in, out UNIQUE;
 DEFINE FIELD in ON TABLE has_achievement TYPE record<resume>;
 DEFINE FIELD out ON TABLE has_achievement TYPE record<achievement>;
 
 -- Relationship between user and resume
-DEFINE TABLE has_resume SCHEMAFULL;
+DEFINE TABLE has_resume SCHEMAFULL TYPE RELATION;
 DEFINE INDEX userResumeIndex ON TABLE has_resume
 COLUMNS in, out UNIQUE;
 DEFINE FIELD in ON TABLE has_resume TYPE record<user_id>;
@@ -118,7 +118,7 @@ DEFINE FIELD updated_at ON TABLE service TYPE datetime
   VALUE time::now();
 
 -- Relationship between user and service
-DEFINE TABLE offers_service SCHEMAFULL;
+DEFINE TABLE offers_service SCHEMAFULL TYPE RELATION;
 DEFINE INDEX userServiceIndex ON TABLE offers_service
 COLUMNS in, out UNIQUE;
 DEFINE FIELD in ON TABLE offers_service TYPE record<user_id>;
@@ -140,18 +140,22 @@ DEFINE FIELD status ON TABLE blog_post TYPE option<string>
   ASSERT $value INSIDE ["Draft", "Published"]
   DEFAULT "Published";
 DEFINE FIELD published_date ON TABLE blog_post TYPE datetime
-  DEFAULT time::now(); 
+  DEFAULT time::now();
 -- remove this for now, we want to use the default value
   -- IF $value IS NOT NONE THEN <datetime>$value
   -- ELSE NONE
   -- END;
+DEFINE FIELD is_featured ON TABLE blog_post TYPE bool
+  DEFAULT false;
+DEFINE FIELD is_premium ON TABLE blog_post TYPE bool
+  DEFAULT false;
 DEFINE FIELD created_at ON TABLE blog_post TYPE datetime
   DEFAULT time::now();
 DEFINE FIELD updated_at ON TABLE blog_post TYPE datetime
   VALUE time::now();
 
 -- Relationship between user and blog_post
-DEFINE TABLE has_blog_post SCHEMAFULL;
+DEFINE TABLE has_blog_post SCHEMAFULL TYPE RELATION;
 DEFINE INDEX userBlogPostIndex ON TABLE has_blog_post
 COLUMNS in, out UNIQUE;
 DEFINE FIELD in ON TABLE has_blog_post TYPE record<user_id>;
@@ -168,14 +172,14 @@ DEFINE FIELD updated_at ON TABLE comment TYPE datetime
   VALUE time::now();
 
 -- Relationship between user, blog_post and comment
-DEFINE TABLE has_comment SCHEMAFULL;
+DEFINE TABLE has_comment SCHEMAFULL TYPE RELATION;
 DEFINE INDEX commentIndex ON TABLE has_comment
 COLUMNS in, out UNIQUE;
 DEFINE FIELD in ON TABLE has_comment TYPE record;
 DEFINE FIELD out ON TABLE has_comment TYPE record<comment>;
 
 -- Relationship between comment and comment
-DEFINE TABLE has_reply SCHEMAFULL;
+DEFINE TABLE has_reply SCHEMAFULL TYPE RELATION;
 DEFINE INDEX commentCommentIndex ON TABLE has_reply
 COLUMNS in, out UNIQUE;
 DEFINE FIELD in ON TABLE has_reply TYPE record<comment>;
@@ -191,7 +195,7 @@ DEFINE FIELD created_at ON TABLE reaction TYPE datetime
   DEFAULT time::now();
 
 -- Relationship between user, blog_post, comment and reaction
-DEFINE TABLE has_reaction SCHEMAFULL;
+DEFINE TABLE has_reaction SCHEMAFULL TYPE RELATION;
 DEFINE INDEX reactionIndex ON TABLE has_reaction
 COLUMNS in, out UNIQUE;
 DEFINE FIELD in ON TABLE has_reaction TYPE record;
@@ -221,7 +225,7 @@ DEFINE FIELD created_at ON TABLE file TYPE datetime
   DEFAULT time::now();
 
 -- Relationship between user and file
-DEFINE TABLE has_file SCHEMAFULL;
+DEFINE TABLE has_file SCHEMAFULL TYPE RELATION;
 DEFINE INDEX fileIndex ON TABLE has_file
 COLUMNS in, out UNIQUE;
 DEFINE FIELD in ON TABLE has_file TYPE record<user_id>;
@@ -254,8 +258,12 @@ DEFINE FIELD updated_at ON TABLE skill TYPE datetime
   VALUE time::now();
 
 -- Relationship between user and skill
-DEFINE TABLE has_skill SCHEMAFULL;
+DEFINE TABLE has_skill SCHEMAFULL TYPE RELATION;
 DEFINE INDEX skillIndex ON TABLE has_skill
 COLUMNS in, out UNIQUE;
 DEFINE FIELD in ON TABLE has_skill TYPE record;
 DEFINE FIELD out ON TABLE has_skill TYPE record<skill>;
+
+/* Migrations */
+-- Migration for blog post table
+-- UPDATE blog_post SET is_featured = false, is_premium = false WHERE is_featured IS NONE OR is_premium IS NONE;

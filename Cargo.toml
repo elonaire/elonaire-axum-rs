@@ -4,8 +4,6 @@ members = [
     # Libs
     "lib",
     # Services
-    "services/acl-service",
-    # Add other services here
     "services/shared-service",
 ]
 
