@@ -13,8 +13,6 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  # ACL_SHOULD_DEPLOY: 'false'
-  # SHARED_SERVICE_SHOULD_DEPLOY: 'false'
   SHARED_SERVICE_PATHS: 'services/shared-service/'
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
@@ -82,10 +80,8 @@ jobs:
           password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
 
       - name: Build the Docker image
-        # run: docker-compose  -f docker-compose.yml -f docker-compose.shared.yml build
-        # run: docker-compose -f docker-compose.shared.yml -f docker-compose.build-shared.yml build
         run: |
-          docker buildx build --build-arg SERVICE_NAME=shared-service --build-arg PORT=3002 -t elonaire/tt-shared-service:latest --push .
+          docker buildx build --build-arg SERVICE_NAME=shared-service --build-arg PORT=3002 --builder cloud-elonaire-elonaire-builder -t elonaire/tt-shared-service:latest --push .
 
   deploy_to_server:
     runs-on: ubuntu-latest
