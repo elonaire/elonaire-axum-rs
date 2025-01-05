@@ -12,7 +12,7 @@ async-graphql-axum = "7.0.7"
 tokio = { version = "1.38.0", features = ["full"] }
 hyper = "1.4.1"
 tower-http = { version = "0.5.2", features = ["cors"] }
-surrealdb = "2.0.2"
+surrealdb = "2.1.4"
 chrono = "0.4.38"
 serde = "1.0.204"
 dotenvy = "0.15.7"
