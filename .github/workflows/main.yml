@@ -87,7 +87,7 @@ jobs:
 
       - name: Build the Docker image
         run: |
-          docker buildx build --build-arg SERVICE_NAME=shared-service --build-arg PORT=3002 -t elonaire/tt-shared-service:latest --attest type=provenance,mode=max --push .
+          docker buildx build --build-arg SERVICE_NAME=shared-service --build-arg PORT=3002 -t elonaire/tt-shared-service:latest --provenance=mode=max --sbom=true --push .
 
   deploy_to_server:
     runs-on: ubuntu-latest
