@@ -4,11 +4,16 @@ use async_graphql::{Context, Error, Object};
 use axum::Extension;
 use surrealdb::{engine::remote::ws::Client as SurrealClient, Surreal};
 
-use crate::{graphql::schemas::{
-    blog,
-    shared::{self, SurrealRelationQueryResponse},
-    user::{self, ResumeAchievements, UserPortfolioSkills, UserResources, UserResume, UserSkill},
-}, middleware::auth::check_auth_from_acl};
+use crate::{
+    graphql::schemas::{
+        blog,
+        shared::{self, SurrealRelationQueryResponse},
+        user::{
+            self, ResumeAchievements, UserPortfolioSkills, UserResources, UserResume, UserSkill,
+        },
+    },
+    middleware::auth::check_auth_from_acl,
+};
 
 pub struct Query;
 
@@ -55,7 +60,7 @@ impl Query {
         }
     }
 
-    /// Get user resources \
+    /// Get user resources
     /// Combines all the resources of a user into a single graphql query
     pub async fn get_user_resources(
         &self,
@@ -77,12 +82,12 @@ impl Query {
         match user {
             Some(user) => {
                 let mut query_results = db
-                    .query("SELECT ->has_blog_post.out.* FROM type::thing($user_id)")
-                    .query("SELECT ->has_professional_details.out.* FROM type::thing($user_id)")
-                    .query("SELECT ->has_portfolio.out.* FROM type::thing($user_id)")
-                    .query("SELECT ->has_resume.out.* FROM type::thing($user_id)")
-                    .query("SELECT ->has_skill.out.* FROM type::thing($user_id)")
-                    .query("SELECT ->offers_service.out.* FROM type::thing($user_id)")
+                    .query("SELECT ->has_blog_post->blog_post.* AS blog_posts FROM ONLY type::thing($user_id) LIMIT 1")
+                    .query("SELECT ->has_professional_details->professional_details.* AS professional_details FROM type::thing($user_id)")
+                    .query("SELECT ->has_portfolio->portfolio.* AS portfolios FROM type::thing($user_id)")
+                    .query("SELECT ->has_resume->resume.* AS resume FROM type::thing($user_id)")
+                    .query("SELECT ->has_skill->skill.* AS skills FROM type::thing($user_id)")
+                    .query("SELECT ->offers_service->service.* AS services FROM type::thing($user_id)")
                     .bind((
                         "user_id",
                         format!(
@@ -112,9 +117,7 @@ impl Query {
                 let resume_vec = match resume {
                     Some(resume) => {
                         let user_resume: Vec<UserResume> = resume
-                            .get("->has_resume")
-                            .unwrap()
-                            .get("out")
+                            .get("resume")
                             .unwrap()
                             .into_iter()
                             .map(|resume| resume.to_owned())
@@ -124,7 +127,7 @@ impl Query {
                             let user_resume = resume.clone();
                             let mut query_results = db
                                 .query(
-                                    "SELECT ->has_achievement.out.* FROM type::thing($resume_id)",
+                                    "SELECT ->has_achievement->achievement.* AS achievements FROM type::thing($resume_id)",
                                 )
                                 .bind((
                                     "resume_id",
@@ -149,14 +152,10 @@ impl Query {
                                 resume.id.as_ref().map(|t| &t.id).expect("id").to_raw(),
                                 resume_achievements
                                     .unwrap()
-                                    .get("->has_achievement")
-                                    .unwrap()
-                                    .get("out")
+                                    .get("achievements")
                                     .unwrap()
                                     .into_iter()
-                                    .map(|achievement| {
-                                        achievement.to_owned().description
-                                    })
+                                    .map(|achievement| achievement.to_owned().description)
                                     .collect(),
                             );
                         }
@@ -169,9 +168,7 @@ impl Query {
                 let portfolio_vec = match portfolio {
                     Some(portfolio) => {
                         let user_portfolio: Vec<user::UserPortfolio> = portfolio
-                            .get("->has_portfolio")
-                            .unwrap()
-                            .get("out")
+                            .get("portfolios")
                             .unwrap()
                             .into_iter()
                             .map(|portfolio| portfolio.to_owned())
@@ -181,7 +178,7 @@ impl Query {
                             let user_portfolio = portfolio.clone();
                             let mut query_results = db
                                 .query(
-                                    "SELECT ->has_skill.out.* FROM type::thing($portfolio_id)",
+                                    "SELECT ->has_skill->skill.* AS skills FROM type::thing($portfolio_id)",
                                 )
                                 .bind((
                                     "portfolio_id",
@@ -206,9 +203,7 @@ impl Query {
                                 portfolio.id.as_ref().map(|t| &t.id).expect("id").to_raw(),
                                 portfolio_skills_val
                                     .unwrap()
-                                    .get("->has_skill")
-                                    .unwrap()
-                                    .get("out")
+                                    .get("skills")
                                     .unwrap()
                                     .into_iter()
                                     .map(|skill| {
@@ -228,18 +223,14 @@ impl Query {
                 let user_resources = UserResources {
                     blog_posts: blog_posts
                         .unwrap()
-                        .get("->has_blog_post")
-                        .unwrap()
-                        .get("out")
+                        .get("blog_posts")
                         .unwrap()
                         .into_iter()
                         .map(|blog| blog.to_owned())
                         .collect(),
                     professional_info: professional_info
                         .unwrap()
-                        .get("->has_professional_details")
-                        .unwrap()
-                        .get("out")
+                        .get("professional_details")
                         .unwrap()
                         .into_iter()
                         .map(|info| info.to_owned())
@@ -248,24 +239,20 @@ impl Query {
                     resume: resume_vec,
                     skills: skills
                         .unwrap()
-                        .get("->has_skill")
-                        .unwrap()
-                        .get("out")
+                        .get("skills")
                         .unwrap()
                         .into_iter()
                         .map(|skill| skill.to_owned())
                         .collect(),
-                    achievements: achievements,
+                    achievements,
                     services: services
                         .unwrap()
-                        .get("->offers_service")
-                        .unwrap()
-                        .get("out")
+                        .get("services")
                         .unwrap()
                         .into_iter()
                         .map(|service| service.to_owned())
                         .collect(),
-                    portfolio_skills: portfolio_skills,
+                    portfolio_skills,
                 };
 
                 Ok(user_resources)
@@ -286,7 +273,7 @@ impl Query {
             .unwrap();
 
         let mut query_results = db
-            .query("SELECT ->has_achievement.out.* FROM type::thing($resume_id)")
+            .query("SELECT ->has_achievement->achievement.* AS achievements FROM type::thing($resume_id)")
             .bind(("resume_id", format!("resume:{}", resume_id)))
             .await
             .map_err(|e| Error::new(e.to_string()))?;
@@ -296,9 +283,7 @@ impl Query {
 
         Ok(achievements
             .unwrap()
-            .get("->has_achievement")
-            .unwrap()
-            .get("out")
+            .get("achievements")
             .unwrap()
             .into_iter()
             .map(|achievement| achievement.to_owned())
@@ -313,23 +298,22 @@ impl Query {
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .unwrap();
 
-            let auth_res_from_acl = check_auth_from_acl(ctx).await?;
+        let auth_res_from_acl = check_auth_from_acl(ctx).await?;
 
-            // fetch all messages in DB
-            match auth_res_from_acl {
-                Some(_) => {
-                    let mut query_results = db
-                        .query("SELECT * FROM message")
-                        .await
-                        .map_err(|e| Error::new(e.to_string()))?;
+        // fetch all messages in DB
+        match auth_res_from_acl {
+            Some(_) => {
+                let mut query_results = db
+                    .query("SELECT * FROM message")
+                    .await
+                    .map_err(|e| Error::new(e.to_string()))?;
 
-                    let messages: Vec<shared::Message> = query_results
-                        .take(0)?;
+                let messages: Vec<shared::Message> = query_results.take(0)?;
 
-                    Ok(messages)
-                }
-                None => Err(Error::new("Unauthorized")),
+                Ok(messages)
             }
+            None => Err(Error::new("Unauthorized")),
+        }
     }
 
     pub async fn get_skills(

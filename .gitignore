@@ -4,3 +4,4 @@
 history.txt
 prod.env
 /services/shared-service/src/posts
+/services/**/logs

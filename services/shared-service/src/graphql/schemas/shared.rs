@@ -4,7 +4,7 @@ use async_graphql::{ComplexObject, Enum, InputObject, SimpleObject};
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
 
-pub type SurrealRelationQueryResponse<T> = HashMap<String, HashMap<String, Vec<T>>>;
+pub type SurrealRelationQueryResponse<T> = HashMap<String, Vec<T>>;
 
 // Reaction
 #[derive(Clone, Debug, Serialize, Deserialize, SimpleObject, InputObject)]
