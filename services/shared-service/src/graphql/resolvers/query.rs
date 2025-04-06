@@ -2,18 +2,16 @@ use std::sync::Arc;
 
 use async_graphql::{Context, Error, Object};
 use axum::Extension;
+use hyper::HeaderMap;
 use surrealdb::{engine::remote::ws::Client as SurrealClient, Surreal};
 
-use crate::{
-    graphql::schemas::{
-        blog,
-        shared::{self, SurrealRelationQueryResponse},
-        user::{
-            self, ResumeAchievements, UserPortfolioSkills, UserResources, UserResume, UserSkill,
-        },
-    },
-    middleware::auth::check_auth_from_acl,
+use crate::graphql::schemas::{
+    blog,
+    shared::{self, SurrealRelationQueryResponse},
+    user::{self, ResumeAchievements, UserPortfolioSkills, UserResources, UserResume, UserSkill},
 };
+
+use lib::middleware::auth::graphql::check_auth_from_acl;
 
 pub struct Query;
 
@@ -298,22 +296,19 @@ impl Query {
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .unwrap();
 
-        let auth_res_from_acl = check_auth_from_acl(ctx).await?;
+        let headers = ctx.data::<HeaderMap>().unwrap();
+
+        let _auth_res_from_acl = check_auth_from_acl(headers).await?;
 
         // fetch all messages in DB
-        match auth_res_from_acl {
-            Some(_) => {
-                let mut query_results = db
-                    .query("SELECT * FROM message")
-                    .await
-                    .map_err(|e| Error::new(e.to_string()))?;
+        let mut query_results = db
+            .query("SELECT * FROM message")
+            .await
+            .map_err(|e| Error::new(e.to_string()))?;
 
-                let messages: Vec<shared::Message> = query_results.take(0)?;
+        let messages: Vec<shared::Message> = query_results.take(0)?;
 
-                Ok(messages)
-            }
-            None => Err(Error::new("Unauthorized")),
-        }
+        Ok(messages)
     }
 
     pub async fn get_skills(

@@ -1,6 +1,6 @@
 mod database;
 mod graphql;
-mod middleware;
+// mod middleware;
 
 use std::{env, sync::Arc};
 
