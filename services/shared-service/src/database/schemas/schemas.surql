@@ -26,9 +26,9 @@ DEFINE EVENT enforce_single_true ON professional_details WHEN $event = 'CREATE' 
 };
 DEFINE INDEX occupationIndex ON TABLE professional_details COLUMNS occupation;
 DEFINE FIELD description ON TABLE professional_details TYPE string;
-DEFINE FIELD start_date ON TABLE professional_details VALUE <datetime>$value;
+DEFINE FIELD start_date ON TABLE professional_details TYPE datetime VALUE <datetime>$value;
 DEFINE FIELD created_at ON TABLE professional_details TYPE datetime
-  DEFAULT time::now();
+  DEFAULT time::now() READONLY;
 DEFINE FIELD updated_at ON TABLE professional_details TYPE datetime
   VALUE time::now();
 
@@ -46,15 +46,15 @@ DEFINE TABLE portfolio SCHEMAFULL;
 -- define some fields.
 DEFINE FIELD title ON TABLE portfolio TYPE string;
 DEFINE FIELD description ON TABLE portfolio TYPE string;
-DEFINE FIELD start_date ON TABLE portfolio VALUE <datetime>$value;
-DEFINE FIELD end_date ON TABLE portfolio VALUE IF $value IS NOT NONE { <datetime>$value } ELSE { NONE };
+DEFINE FIELD start_date ON TABLE portfolio TYPE datetime VALUE <datetime>$value;
+DEFINE FIELD end_date ON TABLE portfolio TYPE option<datetime> VALUE IF $value IS NOT NONE { <datetime>$value } ELSE { NONE };
 DEFINE FIELD link ON TABLE portfolio TYPE string;
 DEFINE FIELD image ON TABLE portfolio TYPE record<file_id>;
 DEFINE FIELD category ON TABLE portfolio TYPE string
 -- Allow only these values in the array
   ASSERT $value INSIDE ["JavaScript", "Rust", "Database", "Cloud", "DevOps", "Mobile"];
 DEFINE FIELD created_at ON TABLE portfolio TYPE datetime
-  DEFAULT time::now();
+  DEFAULT time::now() READONLY;
 DEFINE FIELD updated_at ON TABLE portfolio TYPE datetime
   VALUE time::now();
 
@@ -73,12 +73,12 @@ DEFINE FIELD section ON TABLE resume TYPE string
   ASSERT $value INSIDE ["Education", "Experience", "Achievements", "Projects", "Certifications", "Volunteer", "Publications", "Languages", "Interests", "References"];
 DEFINE FIELD title ON TABLE resume TYPE string;
 DEFINE FIELD more_info ON TABLE resume TYPE string;
-DEFINE FIELD start_date ON TABLE resume VALUE <datetime>$value;
-DEFINE FIELD end_date ON TABLE resume VALUE IF $value IS NOT NONE { <datetime>$value } ELSE { NONE };
+DEFINE FIELD start_date ON TABLE resume TYPE datetime VALUE <datetime>$value;
+DEFINE FIELD end_date ON TABLE resume TYPE option<datetime> VALUE IF $value IS NOT NONE { <datetime>$value } ELSE { NONE };
 DEFINE FIELD link ON TABLE resume TYPE option<string>
   DEFAULT NONE;
 DEFINE FIELD created_at ON TABLE resume TYPE datetime
-  DEFAULT time::now();
+  DEFAULT time::now() READONLY;
 DEFINE FIELD updated_at ON TABLE resume TYPE datetime
   VALUE time::now();
 
@@ -87,7 +87,7 @@ DEFINE TABLE achievement SCHEMAFULL;
 -- define some fields.
 DEFINE FIELD description ON TABLE achievement TYPE string;
 DEFINE FIELD created_at ON TABLE achievement TYPE datetime
-  DEFAULT time::now();
+  DEFAULT time::now() READONLY;
 DEFINE FIELD updated_at ON TABLE achievement TYPE datetime
   VALUE time::now();
 
@@ -113,7 +113,7 @@ DEFINE INDEX titleIndex ON TABLE service COLUMNS title UNIQUE;
 DEFINE FIELD description ON TABLE service TYPE string;
 DEFINE FIELD image ON TABLE service TYPE record<file_id>;
 DEFINE FIELD created_at ON TABLE service TYPE datetime
-  DEFAULT time::now();
+  DEFAULT time::now() READONLY;
 DEFINE FIELD updated_at ON TABLE service TYPE datetime
   VALUE time::now();
 
@@ -139,14 +139,14 @@ DEFINE FIELD status ON TABLE blog_post TYPE option<string>
 -- Allow only these values in the array
   ASSERT $value INSIDE ["Draft", "Published"]
   DEFAULT "Draft";
-DEFINE FIELD published_date ON TABLE blog_post VALUE
+DEFINE FIELD published_date ON TABLE blog_post TYPE option<datetime> VALUE
   IF $value IS NOT NONE { <datetime>$value }ELSE { NONE };
 DEFINE FIELD is_featured ON TABLE blog_post TYPE bool
   DEFAULT false;
 DEFINE FIELD is_premium ON TABLE blog_post TYPE bool
   DEFAULT false;
 DEFINE FIELD created_at ON TABLE blog_post TYPE datetime
-  DEFAULT time::now();
+  DEFAULT time::now() READONLY;
 DEFINE FIELD updated_at ON TABLE blog_post TYPE datetime
   VALUE time::now();
 
@@ -163,7 +163,7 @@ DEFINE TABLE comment SCHEMAFULL;
 DEFINE FIELD content ON TABLE comment TYPE string;
 -- DEFINE FIELD published_date ON TABLE comment VALUE <datetime>$value;
 DEFINE FIELD created_at ON TABLE comment TYPE datetime
-  DEFAULT time::now();
+  DEFAULT time::now() READONLY;
 DEFINE FIELD updated_at ON TABLE comment TYPE datetime
   VALUE time::now();
 
@@ -188,7 +188,7 @@ DEFINE FIELD type ON TABLE reaction TYPE string
 -- Allow only these values in the array
   ASSERT $value INSIDE ["Like", "Dislike", "Love", "Haha", "Wow", "Sad", "Angry"];
 DEFINE FIELD created_at ON TABLE reaction TYPE datetime
-  DEFAULT time::now();
+  DEFAULT time::now() READONLY;
 
 -- Relationship between user, blog_post, comment and reaction
 DEFINE TABLE has_reaction SCHEMAFULL TYPE RELATION IN user_id | blog_post | comment OUT reaction;
@@ -208,7 +208,7 @@ DEFINE FIELD subject ON TABLE message TYPE string
   ASSERT $value INSIDE ["JobOffer", "Consultation", "Feedback", "Complaint", "Suggestion", "Enquiry"];
 DEFINE FIELD body ON TABLE message TYPE string;
 DEFINE FIELD created_at ON TABLE message TYPE datetime
-  DEFAULT time::now();
+  DEFAULT time::now() READONLY;
 
 -- -- A schema-full file table.
 -- DEFINE TABLE file SCHEMAFULL;
@@ -232,7 +232,7 @@ DEFINE TABLE notification SCHEMAFULL;
 -- define some fields.
 DEFINE FIELD content ON TABLE notification TYPE string;
 DEFINE FIELD created_at ON TABLE notification TYPE datetime
-  DEFAULT time::now();
+  DEFAULT time::now() READONLY;
 
 -- A schema-full skill table.
 DEFINE TABLE skill SCHEMAFULL;
@@ -247,9 +247,9 @@ DEFINE FIELD level ON TABLE skill TYPE option<string>
 -- Allow only these values in the array
   ASSERT $value INSIDE ["Beginner", "Intermediate", "Advanced", "Expert", None]
   DEFAULT None;
-DEFINE FIELD start_date ON TABLE skill VALUE <datetime>$value;
+DEFINE FIELD start_date ON TABLE skill TYPE datetime VALUE <datetime>$value;
 DEFINE FIELD created_at ON TABLE skill TYPE datetime
-  DEFAULT time::now();
+  DEFAULT time::now() READONLY;
 DEFINE FIELD updated_at ON TABLE skill TYPE datetime
   VALUE time::now();
 
