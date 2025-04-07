@@ -4,6 +4,12 @@ DEFINE TABLE user_id SCHEMAFULL;
 DEFINE FIELD user_id ON TABLE user_id TYPE string;
 DEFINE INDEX userIndex ON TABLE user_id COLUMNS user_id UNIQUE;
 
+-- A schema-full file_id table
+DEFINE TABLE file_id SCHEMAFULL;
+-- define some fields
+DEFINE FIELD file_id ON TABLE file_id TYPE string;
+DEFINE INDEX fileIndex ON TABLE file_id COLUMNS file_id UNIQUE;
+
 -- A schema-full professional_details table.
 DEFINE TABLE professional_details SCHEMAFULL;
 -- define some fields.
@@ -41,12 +47,9 @@ DEFINE TABLE portfolio SCHEMAFULL;
 DEFINE FIELD title ON TABLE portfolio TYPE string;
 DEFINE FIELD description ON TABLE portfolio TYPE string;
 DEFINE FIELD start_date ON TABLE portfolio VALUE <datetime>$value;
-DEFINE FIELD end_date ON TABLE portfolio VALUE
-  IF $value IS NOT NONE THEN <datetime>$value
-  ELSE NONE
-  END;
+DEFINE FIELD end_date ON TABLE portfolio VALUE IF $value IS NOT NONE { <datetime>$value } ELSE { NONE };
 DEFINE FIELD link ON TABLE portfolio TYPE string;
-DEFINE FIELD image ON TABLE portfolio TYPE string;
+DEFINE FIELD image ON TABLE portfolio TYPE record<file_id>;
 DEFINE FIELD category ON TABLE portfolio TYPE string
 -- Allow only these values in the array
   ASSERT $value INSIDE ["JavaScript", "Rust", "Database", "Cloud", "DevOps", "Mobile"];
@@ -71,12 +74,9 @@ DEFINE FIELD section ON TABLE resume TYPE string
 DEFINE FIELD title ON TABLE resume TYPE string;
 DEFINE FIELD more_info ON TABLE resume TYPE string;
 DEFINE FIELD start_date ON TABLE resume VALUE <datetime>$value;
-DEFINE FIELD end_date ON TABLE resume VALUE
-  IF $value IS NOT NONE THEN <datetime>$value
-  ELSE NONE
-  END;
+DEFINE FIELD end_date ON TABLE resume VALUE IF $value IS NOT NONE { <datetime>$value } ELSE { NONE };
 DEFINE FIELD link ON TABLE resume TYPE option<string>
-  DEFAULT None;
+  DEFAULT NONE;
 DEFINE FIELD created_at ON TABLE resume TYPE datetime
   DEFAULT time::now();
 DEFINE FIELD updated_at ON TABLE resume TYPE datetime
@@ -111,7 +111,7 @@ DEFINE TABLE service SCHEMAFULL;
 DEFINE FIELD title ON TABLE service TYPE string;
 DEFINE INDEX titleIndex ON TABLE service COLUMNS title UNIQUE;
 DEFINE FIELD description ON TABLE service TYPE string;
-DEFINE FIELD image ON TABLE service TYPE string;
+DEFINE FIELD image ON TABLE service TYPE record<file_id>;
 DEFINE FIELD created_at ON TABLE service TYPE datetime
   DEFAULT time::now();
 DEFINE FIELD updated_at ON TABLE service TYPE datetime
@@ -129,7 +129,7 @@ DEFINE TABLE blog_post SCHEMAFULL;
 -- define some fields.
 DEFINE FIELD title ON TABLE blog_post TYPE string;
 DEFINE FIELD short_description ON TABLE blog_post TYPE string;
-DEFINE FIELD image ON TABLE blog_post TYPE string;
+DEFINE FIELD image ON TABLE blog_post TYPE record<file_id>;
 DEFINE FIELD category ON TABLE blog_post TYPE string
 -- Allow only these values in the array
   ASSERT $value INSIDE ["WebDevelopment", "MobileDevelopment", "ArtificialIntelligence", "Technology", "Lifestyle"];
@@ -138,13 +138,9 @@ DEFINE INDEX blogPostIndex ON TABLE blog_post COLUMNS link UNIQUE;
 DEFINE FIELD status ON TABLE blog_post TYPE option<string>
 -- Allow only these values in the array
   ASSERT $value INSIDE ["Draft", "Published"]
-  DEFAULT "Published";
-DEFINE FIELD published_date ON TABLE blog_post TYPE datetime
-  DEFAULT time::now();
--- remove this for now, we want to use the default value
-  -- IF $value IS NOT NONE THEN <datetime>$value
-  -- ELSE NONE
-  -- END;
+  DEFAULT "Draft";
+DEFINE FIELD published_date ON TABLE blog_post VALUE
+  IF $value IS NOT NONE { <datetime>$value }ELSE { NONE };
 DEFINE FIELD is_featured ON TABLE blog_post TYPE bool
   DEFAULT false;
 DEFINE FIELD is_premium ON TABLE blog_post TYPE bool
@@ -214,22 +210,22 @@ DEFINE FIELD body ON TABLE message TYPE string;
 DEFINE FIELD created_at ON TABLE message TYPE datetime
   DEFAULT time::now();
 
--- A schema-full file table.
-DEFINE TABLE file SCHEMAFULL;
--- define some fields.
-DEFINE FIELD name ON TABLE file TYPE string;
-DEFINE FIELD type ON TABLE file TYPE string;
-DEFINE FIELD size ON TABLE file TYPE string;
-DEFINE FIELD url ON TABLE file TYPE string;
-DEFINE FIELD created_at ON TABLE file TYPE datetime
-  DEFAULT time::now();
+-- -- A schema-full file table.
+-- DEFINE TABLE file SCHEMAFULL;
+-- -- define some fields.
+-- DEFINE FIELD name ON TABLE file TYPE string;
+-- DEFINE FIELD type ON TABLE file TYPE string;
+-- DEFINE FIELD size ON TABLE file TYPE string;
+-- DEFINE FIELD url ON TABLE file TYPE string;
+-- DEFINE FIELD created_at ON TABLE file TYPE datetime
+--   DEFAULT time::now();
 
 -- Relationship between user and file
-DEFINE TABLE has_file SCHEMAFULL TYPE RELATION IN user_id OUT file;
+DEFINE TABLE has_file SCHEMAFULL TYPE RELATION IN user_id OUT file_id;
 DEFINE INDEX fileIndex ON TABLE has_file
 COLUMNS in, out UNIQUE;
 DEFINE FIELD in ON TABLE has_file TYPE record<user_id>;
-DEFINE FIELD out ON TABLE has_file TYPE record<file>;
+DEFINE FIELD out ON TABLE has_file TYPE record<file_id>;
 
 -- A schema-full notification table.
 DEFINE TABLE notification SCHEMAFULL;
@@ -246,7 +242,7 @@ DEFINE FIELD type ON TABLE skill TYPE string
 -- Allow only these values in the array
   ASSERT $value INSIDE ["Technical", "Soft"];
 DEFINE INDEX skillIndex ON TABLE skill COLUMNS name UNIQUE;
-DEFINE FIELD image ON TABLE skill TYPE string;
+DEFINE FIELD image ON TABLE skill TYPE record<file_id>;
 DEFINE FIELD level ON TABLE skill TYPE option<string>
 -- Allow only these values in the array
   ASSERT $value INSIDE ["Beginner", "Intermediate", "Advanced", "Expert", None]
