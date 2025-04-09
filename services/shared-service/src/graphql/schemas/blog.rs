@@ -11,7 +11,7 @@ pub struct BlogPost {
     pub title: String,
     pub short_description: String,
     pub status: Option<String>,
-    pub image: String,
+    pub thumbnail: String,
     pub category: BlogCategory,
     pub link: String,
     pub published_date: Option<String>,
@@ -31,7 +31,7 @@ pub struct BlogPostUpdate {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub image: Option<String>,
+    pub thumbnail: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub category: Option<BlogCategory>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -51,15 +51,15 @@ pub struct BlogPostUpdate {
 // enum for BlogCategory: "WebDevelopment", "MobileDevelopment", "AI", "Technology", "Lifestyle"
 #[derive(Clone, Debug, Serialize, Deserialize, Enum, Copy, Eq, PartialEq)]
 pub enum BlogCategory {
-    #[graphql(name="WebDevelopment")]
+    #[graphql(name = "WebDevelopment")]
     WebDevelopment,
-    #[graphql(name="MobileDevelopment")]
+    #[graphql(name = "MobileDevelopment")]
     MobileDevelopment,
-    #[graphql(name="ArtificialIntelligence")]
+    #[graphql(name = "ArtificialIntelligence")]
     ArtificialIntelligence,
-    #[graphql(name="Technology")]
+    #[graphql(name = "Technology")]
     Technology,
-    #[graphql(name="Lifestyle")]
+    #[graphql(name = "Lifestyle")]
     Lifestyle,
 }
 
@@ -99,9 +99,9 @@ impl BlogPost {
     async fn content(&self) -> String {
         let blog_posts_dir: String = std::env::var("BLOG_POSTS_DIR").expect("POSTS_DIR not set");
 
-        let content =
-            std::fs::read_to_string(format!("{}{}.md", blog_posts_dir, self.link)).expect("content");
-        
+        let content = std::fs::read_to_string(format!("{}{}.md", blog_posts_dir, self.link))
+            .expect("content");
+
         let html_content = markdown::to_html(&content);
         html_content
     }
@@ -113,4 +113,3 @@ impl BlogComment {
         self.id.as_ref().map(|t| &t.id).expect("id").to_raw()
     }
 }
-

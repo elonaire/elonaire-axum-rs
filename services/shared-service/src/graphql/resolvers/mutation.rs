@@ -5,7 +5,7 @@ use axum::Extension;
 // use gql_client::Client as GQLClient;
 
 use hyper::HeaderMap;
-use lib::utils::models::{ForeignKey, User};
+use lib::utils::models::{ForeignKey, UploadedFile, User};
 use lib::{
     integration::foreign_key::add_foreign_key_if_not_exists,
     middleware::auth::graphql::check_auth_from_acl, utils::custom_error::ExtendedError,
@@ -51,15 +51,15 @@ impl Mutation {
             return Err(ExtendedError::new("Failed to add user_id", Some(500.to_string())).build());
         }
 
+        tracing::debug!("professional_details: {:?}", professional_details);
+        tracing::debug!("user_id: {:?}", auth_res_from_acl.sub);
+
         let mut database_transaction = db
         .query(
             "
             BEGIN TRANSACTION;
-            LET $professional_details = CREATE professional_details CONTENT $professional_details_input;
-            LET $user = (SELECT id FROM type::table($table) WHERE user_id = $user_id LIMIT 1);
-
-            LET $professional_details_id = (SELECT VALUE id FROM $professional_details);
-            RELATE $user->has_professional_details->$professional_details_id;
+            LET $user = (SELECT VALUE id FROM ONLY type::table($table) WHERE user_id = $user_id LIMIT 1);
+            LET $professional_details = (RELATE $user -> professional_details -> $user CONTENT $professional_details_input RETURN AFTER);
             RETURN $professional_details;
             COMMIT TRANSACTION;
             "
@@ -68,9 +68,16 @@ impl Mutation {
         .bind(("table", "user_id"))
         .bind(("user_id", auth_res_from_acl.sub))
         .await
-        .map_err(|e| Error::new(e.to_string()))?;
+        .map_err(|e| {
+            tracing::debug!("DB Query Failed: {}", e);
+            Error::new("Internal Server Error.")
+        })?;
 
-        let response: Vec<UserProfessionalInfo> = database_transaction.take(0).unwrap();
+        let response: Vec<UserProfessionalInfo> = database_transaction.take(0).map_err(|e| {
+            tracing::debug!("Deserialization Failed: {}", e);
+            tracing::debug!("database_transaction: {:?}", database_transaction);
+            Error::new("Internal Server Error.")
+        })?;
 
         Ok(response)
     }
@@ -95,25 +102,24 @@ impl Mutation {
             foreign_key: auth_res_from_acl.sub.clone(),
         };
 
-        let id_added =
-            add_foreign_key_if_not_exists::<Extension<Arc<Surreal<SurrealClient>>>, User>(
-                db, user_fk,
-            )
-            .await;
+        let added_user_id = add_foreign_key_if_not_exists::<
+            Extension<Arc<Surreal<SurrealClient>>>,
+            User,
+        >(db, user_fk)
+        .await;
 
-        if id_added.is_none() {
-            return Err(ExtendedError::new("Failed to add user_id", Some(500.to_string())).build());
+        if added_user_id.is_none() {
+            tracing::error!("added_user_id: {:?}", added_user_id);
+            return Err(ExtendedError::new("Invalid Input Data", Some(400.to_string())).build());
         }
 
         let mut database_transaction = db
             .query(
                 "
             BEGIN TRANSACTION;
-            LET $user_service = CREATE service CONTENT $user_service_input;
-            LET $user = (SELECT id FROM type::table($table) WHERE user_id = $user_id LIMIT 1);
+            LET $user = (SELECT VALUE id FROM ONLY type::table($table) WHERE user_id = $user_id LIMIT 1);
 
-            LET $user_service_id = (SELECT VALUE id FROM $user_service);
-            RELATE $user->offers_service->$user_service_id;
+            LET $user_service = (RELATE $user->service->$user CONTENT $user_service_input RETURN AFTER);
             RETURN $user_service;
             COMMIT TRANSACTION;
             ",
@@ -122,9 +128,15 @@ impl Mutation {
             .bind(("table", "user_id"))
             .bind(("user_id", auth_res_from_acl.sub))
             .await
-            .map_err(|e| Error::new(e.to_string()))?;
+            .map_err(|e| {
+                tracing::debug!("DB Query Error: {}", e);
+                Error::new("Internal Server Error")
+            })?;
 
-        let response: Vec<user::UserService> = database_transaction.take(0).unwrap();
+        let response: Vec<user::UserService> = database_transaction.take(0).map_err(|e| {
+            tracing::debug!("database_transaction: {:?}", database_transaction);
+            Error::new("Internal Server Error")
+        })?;
 
         Ok(response)
     }
@@ -163,11 +175,9 @@ impl Mutation {
             .query(
                 "
             BEGIN TRANSACTION;
-            LET $portfolio_item = CREATE portfolio CONTENT $portfolio_item_input;
-            LET $user = (SELECT id FROM type::table($table) WHERE user_id = $user_id LIMIT 1);
+            LET $user = (SELECT VALUE id FROM ONLY type::table($table) WHERE user_id = $user_id LIMIT 1);
 
-            LET $portfolio_item_id = (SELECT VALUE id FROM $portfolio_item);
-            RELATE $user->has_portfolio->$portfolio_item_id;
+            LET $portfolio_item = (RELATE $user->portfolio->$user CONTENT $portfolio_item_input RETURN AFTER);
             RETURN $portfolio_item;
             COMMIT TRANSACTION;
             ",
@@ -176,9 +186,15 @@ impl Mutation {
             .bind(("table", "user_id"))
             .bind(("user_id", auth_res_from_acl.sub))
             .await
-            .map_err(|e| Error::new(e.to_string()))?;
+            .map_err(|e| {
+                tracing::debug!("DB Query Error: {}", e);
+                Error::new("Internal Server Error")
+            })?;
 
-        let response: Vec<user::UserPortfolio> = database_transaction.take(0).unwrap();
+        let response: Vec<user::UserPortfolio> = database_transaction.take(0).map_err(|e| {
+            tracing::debug!("database_transaction: {:?}", database_transaction);
+            Error::new("Internal Server Error")
+        })?;
 
         Ok(response)
     }
@@ -217,11 +233,9 @@ impl Mutation {
             .query(
                 "
             BEGIN TRANSACTION;
-            LET $resume_item = CREATE resume CONTENT $resume_item_input;
-            LET $user = (SELECT id FROM type::table($table) WHERE user_id = $user_id LIMIT 1);
+            LET $user = (SELECT VALUE id FROM type::table($table) WHERE user_id = $user_id LIMIT 1);
 
-            LET $resume_item_id = (SELECT VALUE id FROM $resume_item);
-            RELATE $user->has_resume->$resume_item_id;
+            LET $resume_item = (RELATE $user->resume->$user CONTENT $resume_item_input RETURN AFTER);
             RETURN $resume_item;
             COMMIT TRANSACTION;
             ",
@@ -230,9 +244,15 @@ impl Mutation {
             .bind(("table", "user_id"))
             .bind(("user_id", auth_res_from_acl.sub))
             .await
-            .map_err(|e| Error::new(e.to_string()))?;
+            .map_err(|e| {
+                tracing::debug!("DB Query Error: {}", e);
+                Error::new("Internal Server Error")
+            })?;
 
-        let response: Vec<user::UserResume> = database_transaction.take(0).unwrap();
+        let response: Vec<user::UserResume> = database_transaction.take(0).map_err(|e| {
+            tracing::debug!("database_transaction: {:?}", database_transaction);
+            Error::new("Internal Server Error")
+        })?;
 
         Ok(response)
     }
@@ -272,11 +292,9 @@ impl Mutation {
         .query(
             "
             BEGIN TRANSACTION;
-            LET $resume_item_achievement = CREATE achievement CONTENT $resume_item_achievement_input;
-            LET $resume = (SELECT id FROM type::table($table) WHERE id = type::thing($resume_id) LIMIT 1);
+            LET $resume = type::thing($resume_id);
 
-            LET $resume_item_achievement_id = (SELECT VALUE id FROM $resume_item_achievement);
-            RELATE $resume->has_achievement->$resume_item_achievement_id;
+            LET $resume_item_achievement = (RELATE $resume->achievement->$resume CONTENT $resume_item_achievement_input RETURN AFTER);
             RETURN $resume_item_achievement;
             COMMIT TRANSACTION;
             "
@@ -285,9 +303,15 @@ impl Mutation {
         .bind(("table", "resume"))
         .bind(("resume_id", format!("resume:{}", resume_id)))
         .await
-        .map_err(|e| Error::new(e.to_string()))?;
+        .map_err(|e| {
+            tracing::debug!("DB Query Error: {}", e);
+            Error::new("Internal Server Error")
+        })?;
 
-        let response: Vec<user::ResumeAchievement> = database_transaction.take(0).unwrap();
+        let response: Vec<user::ResumeAchievement> = database_transaction.take(0).map_err(|e| {
+            tracing::debug!("database_transaction: {:?}", database_transaction);
+            Error::new("Internal Server Error")
+        })?;
 
         Ok(response)
     }
@@ -326,11 +350,9 @@ impl Mutation {
             .query(
                 "
             BEGIN TRANSACTION;
-            LET $skill = CREATE skill CONTENT $skill_input;
-            LET $user = (SELECT id FROM type::table($table) WHERE user_id = $user_id LIMIT 1);
+            LET $user = (SELECT VALUE id FROM type::table($table) WHERE user_id = $user_id LIMIT 1);
 
-            LET $skill_id = (SELECT VALUE id FROM $skill);
-            RELATE $user->has_skill->$skill_id;
+            LET $skill = (RELATE $user->skill->$user CONTENT $skill_input RETURN AFTER);
             RETURN $skill;
             COMMIT TRANSACTION;
             ",
@@ -339,9 +361,15 @@ impl Mutation {
             .bind(("table", "user_id"))
             .bind(("user_id", auth_res_from_acl.sub))
             .await
-            .map_err(|e| Error::new(e.to_string()))?;
+            .map_err(|e| {
+                tracing::debug!("DB Query Error: {}", e);
+                Error::new("Internal Server Error")
+            })?;
 
-        let response: Vec<user::UserSkill> = database_transaction.take(0).unwrap();
+        let response: Vec<user::UserSkill> = database_transaction.take(0).map_err(|e| {
+            tracing::debug!("database_transaction: {:?}", database_transaction);
+            Error::new("Internal Server Error")
+        })?;
 
         Ok(response)
     }
@@ -380,11 +408,9 @@ impl Mutation {
             .query(
                 "
             BEGIN TRANSACTION;
-            LET $blog_post = CREATE blog_post CONTENT $blog_post_input;
-            LET $user = (SELECT id FROM type::table($table) WHERE user_id = $user_id LIMIT 1);
+            LET $user = (SELECT VALUE id FROM type::table($table) WHERE user_id = $user_id LIMIT 1);
 
-            LET $blog_post_id = (SELECT VALUE id FROM $blog_post);
-            RELATE $user->has_blog_post->$blog_post_id;
+            LET $blog_post = (RELATE $user->blog_post->$user CONTENT $blog_post_input RETURN AFTER);
             RETURN $blog_post;
             COMMIT TRANSACTION;
             ",
@@ -393,9 +419,15 @@ impl Mutation {
             .bind(("table", "user_id"))
             .bind(("user_id", auth_res_from_acl.sub))
             .await
-            .map_err(|e| Error::new(e.to_string()))?;
+            .map_err(|e| {
+                tracing::debug!("DB Query Error: {}", e);
+                Error::new("Internal Server Error")
+            })?;
 
-        let response: Vec<blog::BlogPost> = database_transaction.take(0).unwrap();
+        let response: Vec<blog::BlogPost> = database_transaction.take(0).map_err(|e| {
+            tracing::debug!("database_transaction: {:?}", database_transaction);
+            Error::new("Internal Server Error")
+        })?;
 
         Ok(response)
     }
@@ -460,7 +492,9 @@ impl Mutation {
         .await
         .map_err(|e| Error::new(e.to_string()))?;
 
-        let response: Vec<blog::BlogComment> = database_transaction.take(0).unwrap();
+        let response: Vec<blog::BlogComment> = database_transaction
+            .take(0)
+            .map_err(|e| Error::new(e.to_string()))?;
 
         Ok(response)
     }
@@ -528,7 +562,9 @@ impl Mutation {
         .await
         .map_err(|e| Error::new(e.to_string()))?;
 
-        let response: Vec<blog::BlogComment> = database_transaction.take(0).unwrap();
+        let response: Vec<blog::BlogComment> = database_transaction
+            .take(0)
+            .map_err(|e| Error::new(e.to_string()))?;
 
         Ok(response)
     }
@@ -594,7 +630,9 @@ impl Mutation {
         .await
         .map_err(|e| Error::new(e.to_string()))?;
 
-        let response: Vec<shared::Reaction> = database_transaction.take(0).unwrap();
+        let response: Vec<shared::Reaction> = database_transaction
+            .take(0)
+            .map_err(|e| Error::new(e.to_string()))?;
 
         Ok(response)
     }
@@ -660,7 +698,9 @@ impl Mutation {
         .await
         .map_err(|e| Error::new(e.to_string()))?;
 
-        let response: Vec<shared::Reaction> = database_transaction.take(0).unwrap();
+        let response: Vec<shared::Reaction> = database_transaction
+            .take(0)
+            .map_err(|e| Error::new(e.to_string()))?;
 
         Ok(response)
     }
@@ -675,14 +715,13 @@ impl Mutation {
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .unwrap();
 
-        let message: Vec<shared::Message> = db
+        let message: Option<Vec<shared::Message>> = db
             .create("message")
             .content(message)
             .await
-            .map_err(|e| Error::new(e.to_string()))?
-            .expect("Failed to send message");
+            .map_err(|e| Error::new(e.to_string()))?;
 
-        Ok(message)
+        Ok(message.unwrap_or_default())
     }
 
     /// Relate a skill to a portfolio item
@@ -700,29 +739,38 @@ impl Mutation {
         let _auth_res_from_acl = check_auth_from_acl(headers).await?;
 
         let mut database_transaction = db
-        .query(
-            "
+            .query(
+                "
             BEGIN TRANSACTION;
             -- Get the skill and portfolio item
-            LET $skill = (SELECT * FROM type::table($skill_table) WHERE id = type::thing($skill_id) LIMIT 1);
-            LET $portfolio_item = (SELECT id FROM type::table($portfolio_table) WHERE id = type::thing($portfolio_item_id) LIMIT 1);
+            LET $skill = type::thing($skill_id);
+            LET $portfolio_item = type::thing($portfolio_item_id);
 
             -- Relate the skill to the portfolio item
-            LET $skill_id = (SELECT VALUE id FROM $skill);
-            RELATE $portfolio_item->has_skill->$skill_id;
+            RELATE $portfolio_item->uses_skill->$skill;
+            LET $skill_val = SELECT * FROM $skill;
 
-            RETURN $skill;
+            RETURN $skill_val;
             COMMIT TRANSACTION;
-            "
-        )
-        .bind(("skill_id", format!("skill:{}", skill_id)))
-        .bind(("skill_table", "skill"))
-        .bind(("portfolio_item_id", format!("portfolio:{}", portfolio_item_id)))
-        .bind(("portfolio_table", "portfolio"))
-        .await
-        .map_err(|e| Error::new(e.to_string()))?;
+            ",
+            )
+            .bind(("skill_id", format!("skill:{}", skill_id)))
+            .bind(("skill_table", "skill"))
+            .bind((
+                "portfolio_item_id",
+                format!("portfolio:{}", portfolio_item_id),
+            ))
+            .bind(("portfolio_table", "portfolio"))
+            .await
+            .map_err(|e| {
+                tracing::debug!("DB Query Error: {}", e);
+                Error::new("Internal Server Error")
+            })?;
 
-        let response: Vec<user::UserSkill> = database_transaction.take(0).unwrap();
+        let response: Vec<user::UserSkill> = database_transaction.take(0).map_err(|e| {
+            tracing::debug!("database_transaction: {:?}", database_transaction);
+            Error::new("Internal Server Error")
+        })?;
 
         Ok(response)
     }

@@ -15,3 +15,10 @@ pub struct User {
     pub id: Option<Thing>,
     pub user_id: String,
 }
+
+#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
+pub struct UploadedFile {
+    #[graphql(skip)]
+    pub id: Option<Thing>,
+    pub file_id: String,
+}

@@ -33,7 +33,7 @@ pub struct UserPortfolio {
     pub end_date: Option<String>,
     pub link: String,
     pub category: UserPortfolioCategory,
-    pub image: String,
+    pub thumbnail: String,
 }
 
 // enum for UserPortfolio category
@@ -153,7 +153,7 @@ impl ResumeAchievement {
 pub struct UserSkill {
     #[graphql(skip)]
     pub id: Option<Thing>,
-    pub image: String,
+    pub thumbnail: String,
     pub name: String,
     pub level: Option<UserSkillLevel>,
     pub r#type: UserSkillType,
@@ -198,7 +198,7 @@ pub struct UserService {
     pub id: Option<Thing>,
     pub title: String,
     pub description: String,
-    pub image: String,
+    pub thumbnail: String,
 }
 
 #[ComplexObject]
