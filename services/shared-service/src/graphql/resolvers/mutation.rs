@@ -5,7 +5,7 @@ use axum::Extension;
 // use gql_client::Client as GQLClient;
 
 use hyper::HeaderMap;
-use lib::utils::models::{ForeignKey, UploadedFile, User};
+use lib::utils::models::{ForeignKey, User};
 use lib::{
     integration::foreign_key::add_foreign_key_if_not_exists,
     middleware::auth::graphql::check_auth_from_acl, utils::custom_error::ExtendedError,
@@ -133,7 +133,7 @@ impl Mutation {
                 Error::new("Internal Server Error")
             })?;
 
-        let response: Vec<user::UserService> = database_transaction.take(0).map_err(|e| {
+        let response: Vec<user::UserService> = database_transaction.take(0).map_err(|_e| {
             tracing::debug!("database_transaction: {:?}", database_transaction);
             Error::new("Internal Server Error")
         })?;
@@ -146,7 +146,7 @@ impl Mutation {
         &self,
         ctx: &Context<'_>,
         portfolio_item: user::UserPortfolio,
-    ) -> async_graphql::Result<Vec<user::UserPortfolio>> {
+    ) -> async_graphql::Result<Vec<user::UserPortfolioOutput>> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .unwrap();
@@ -191,10 +191,11 @@ impl Mutation {
                 Error::new("Internal Server Error")
             })?;
 
-        let response: Vec<user::UserPortfolio> = database_transaction.take(0).map_err(|e| {
-            tracing::debug!("database_transaction: {:?}", database_transaction);
-            Error::new("Internal Server Error")
-        })?;
+        let response: Vec<user::UserPortfolioOutput> =
+            database_transaction.take(0).map_err(|_e| {
+                tracing::debug!("database_transaction: {:?}", database_transaction);
+                Error::new("Internal Server Error")
+            })?;
 
         Ok(response)
     }
@@ -204,7 +205,7 @@ impl Mutation {
         &self,
         ctx: &Context<'_>,
         resume_item: user::UserResume,
-    ) -> async_graphql::Result<Vec<user::UserResume>> {
+    ) -> async_graphql::Result<Vec<user::UserResumeOutput>> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .unwrap();
@@ -249,7 +250,7 @@ impl Mutation {
                 Error::new("Internal Server Error")
             })?;
 
-        let response: Vec<user::UserResume> = database_transaction.take(0).map_err(|e| {
+        let response: Vec<user::UserResumeOutput> = database_transaction.take(0).map_err(|_e| {
             tracing::debug!("database_transaction: {:?}", database_transaction);
             Error::new("Internal Server Error")
         })?;
@@ -308,10 +309,11 @@ impl Mutation {
             Error::new("Internal Server Error")
         })?;
 
-        let response: Vec<user::ResumeAchievement> = database_transaction.take(0).map_err(|e| {
-            tracing::debug!("database_transaction: {:?}", database_transaction);
-            Error::new("Internal Server Error")
-        })?;
+        let response: Vec<user::ResumeAchievement> =
+            database_transaction.take(0).map_err(|_e| {
+                tracing::debug!("database_transaction: {:?}", database_transaction);
+                Error::new("Internal Server Error")
+            })?;
 
         Ok(response)
     }
@@ -366,7 +368,7 @@ impl Mutation {
                 Error::new("Internal Server Error")
             })?;
 
-        let response: Vec<user::UserSkill> = database_transaction.take(0).map_err(|e| {
+        let response: Vec<user::UserSkill> = database_transaction.take(0).map_err(|_e| {
             tracing::debug!("database_transaction: {:?}", database_transaction);
             Error::new("Internal Server Error")
         })?;
@@ -424,7 +426,7 @@ impl Mutation {
                 Error::new("Internal Server Error")
             })?;
 
-        let response: Vec<blog::BlogPost> = database_transaction.take(0).map_err(|e| {
+        let response: Vec<blog::BlogPost> = database_transaction.take(0).map_err(|_e| {
             tracing::debug!("database_transaction: {:?}", database_transaction);
             Error::new("Internal Server Error")
         })?;
@@ -767,7 +769,7 @@ impl Mutation {
                 Error::new("Internal Server Error")
             })?;
 
-        let response: Vec<user::UserSkill> = database_transaction.take(0).map_err(|e| {
+        let response: Vec<user::UserSkill> = database_transaction.take(0).map_err(|_e| {
             tracing::debug!("database_transaction: {:?}", database_transaction);
             Error::new("Internal Server Error")
         })?;

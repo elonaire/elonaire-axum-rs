@@ -36,7 +36,7 @@ DEFINE FIELD description ON TABLE portfolio TYPE string;
 DEFINE FIELD start_date ON TABLE portfolio VALUE <datetime>$value;
 DEFINE FIELD end_date ON TABLE portfolio TYPE option<datetime> VALUE IF $value IS NOT NONE { <datetime>$value } ELSE { NONE };
 DEFINE FIELD link ON TABLE portfolio TYPE string;
-DEFINE FIELD OVERWRITE thumbnail ON TABLE portfolio TYPE string;
+DEFINE FIELD thumbnail ON TABLE portfolio TYPE string;
 DEFINE FIELD category ON TABLE portfolio TYPE string
 -- Allow only these values in the array
   ASSERT $value INSIDE ["JavaScript", "Rust", "Database", "Cloud", "DevOps", "Mobile"];
@@ -80,7 +80,7 @@ DEFINE TABLE service SCHEMAFULL TYPE RELATION IN user_id OUT user_id;
 DEFINE FIELD title ON TABLE service TYPE string;
 DEFINE INDEX titleIndex ON TABLE service COLUMNS title UNIQUE;
 DEFINE FIELD description ON TABLE service TYPE string;
-DEFINE FIELD OVERWRITE thumbnail ON TABLE service TYPE string;
+DEFINE FIELD thumbnail ON TABLE service TYPE string;
 DEFINE FIELD created_at ON TABLE service TYPE datetime
   DEFAULT time::now() READONLY;
 DEFINE FIELD updated_at ON TABLE service TYPE datetime
@@ -92,16 +92,17 @@ DEFINE TABLE blog_post SCHEMAFULL TYPE RELATION IN user_id OUT user_id;
 -- define some fields.
 DEFINE FIELD title ON TABLE blog_post TYPE string;
 DEFINE FIELD short_description ON TABLE blog_post TYPE string;
-DEFINE FIELD OVERWRITE thumbnail ON TABLE blog_post TYPE string;
+DEFINE FIELD thumbnail ON TABLE blog_post TYPE string;
+DEFINE FIELD content_file ON TABLE blog_post TYPE string;
 DEFINE FIELD other_images ON TABLE blog_post TYPE array<string>;
 DEFINE FIELD category ON TABLE blog_post TYPE string
 -- Allow only these values in the array
   ASSERT $value INSIDE ["WebDevelopment", "MobileDevelopment", "ArtificialIntelligence", "Technology", "Lifestyle"];
-DEFINE FIELD link ON TABLE blog_post TYPE string;
+DEFINE FIELD link ON TABLE blog_post TYPE string VALUE string::slug(title);
 DEFINE INDEX blogPostIndex ON TABLE blog_post COLUMNS link UNIQUE;
 DEFINE FIELD status ON TABLE blog_post TYPE option<string>
 -- Allow only these values in the array
-  ASSERT $value INSIDE ["Draft", "Published"]
+  ASSERT $value INSIDE ["Draft", "Published", "Archived"]
   DEFAULT "Draft";
 DEFINE FIELD published_date ON TABLE blog_post TYPE option<datetime> VALUE
   IF $value IS NOT NONE { <datetime>$value }ELSE { NONE };
@@ -119,7 +120,6 @@ DEFINE FIELD updated_at ON TABLE blog_post TYPE datetime
 DEFINE TABLE comment SCHEMAFULL TYPE NORMAL;
 -- define some fields.
 DEFINE FIELD content ON TABLE comment TYPE string;
--- DEFINE FIELD published_date ON TABLE comment VALUE <datetime>$value;
 DEFINE FIELD created_at ON TABLE comment TYPE datetime
   DEFAULT time::now() READONLY;
 DEFINE FIELD updated_at ON TABLE comment TYPE datetime
@@ -174,7 +174,7 @@ DEFINE FIELD type ON TABLE skill TYPE string
 -- Allow only these values in the array
   ASSERT $value INSIDE ["Technical", "Soft"];
 DEFINE INDEX skillIndex ON TABLE skill COLUMNS name UNIQUE;
-DEFINE FIELD OVERWRITE thumbnail ON TABLE skill TYPE string;
+DEFINE FIELD thumbnail ON TABLE skill TYPE string;
 DEFINE FIELD level ON TABLE skill TYPE option<string>
 -- Allow only these values in the array
   ASSERT $value INSIDE ["Beginner", "Intermediate", "Advanced", "Expert", None]
