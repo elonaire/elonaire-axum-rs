@@ -2,18 +2,16 @@ use std::sync::Arc;
 
 use async_graphql::{Context, Error, Object};
 use axum::Extension;
+use hyper::HeaderMap;
 use surrealdb::{engine::remote::ws::Client as SurrealClient, Surreal};
 
-use crate::{
-    graphql::schemas::{
-        blog,
-        shared::{self, SurrealRelationQueryResponse},
-        user::{
-            self, ResumeAchievements, UserPortfolioSkills, UserResources, UserResume, UserSkill,
-        },
-    },
-    middleware::auth::check_auth_from_acl,
+use crate::graphql::schemas::{
+    blog,
+    shared::{self, SurrealRelationQueryResponse},
+    user::{self, UserResources},
 };
+
+use lib::middleware::auth::graphql::check_auth_from_acl;
 
 pub struct Query;
 
@@ -82,143 +80,57 @@ impl Query {
         match user {
             Some(user) => {
                 let mut query_results = db
-                    .query("SELECT ->has_blog_post->blog_post.* AS blog_posts FROM ONLY type::thing($user_id) LIMIT 1")
-                    .query("SELECT ->has_professional_details->professional_details.* AS professional_details FROM type::thing($user_id)")
-                    .query("SELECT ->has_portfolio->portfolio.* AS portfolios FROM type::thing($user_id)")
-                    .query("SELECT ->has_resume->resume.* AS resume FROM type::thing($user_id)")
-                    .query("SELECT ->has_skill->skill.* AS skills FROM type::thing($user_id)")
-                    .query("SELECT ->offers_service->service.* AS services FROM type::thing($user_id)")
+                    .query("SELECT ->blog_post[*] AS blog_posts FROM ONLY type::thing($internal_user_id)")
+                    .query("SELECT ->professional_details[*] AS professional_details FROM ONLY type::thing($internal_user_id)")
+                    .query("SELECT *, ->uses_skill->skill[*] AS skills FROM portfolio WHERE ->(user_id WHERE user_id = $external_user_id)")
+                    .query("SELECT *, ->achievement[*] AS achievements FROM resume WHERE ->(user_id WHERE user_id = $external_user_id)")
+                    .query("SELECT ->skill[*] AS skills FROM ONLY type::thing($internal_user_id)")
+                    .query("SELECT ->service[*] AS services FROM ONLY type::thing($internal_user_id)")
                     .bind((
-                        "user_id",
+                        "internal_user_id",
                         format!(
                             "user_id:{}",
                             user.id.as_ref().map(|t| &t.id).expect("id").to_raw()
                         ),
                     ))
+                    .bind(("external_user_id", user.user_id))
                     .await
-                    .map_err(|e| Error::new(e.to_string()))?;
+                    .map_err(|e| {
+                        tracing::debug!("DB Query error: {}", e);
+                        Error::new("Internal Server Error".to_string())
+                    })?;
 
                 let blog_posts: Option<SurrealRelationQueryResponse<blog::BlogPost>> =
-                    query_results.take(0)?;
+                    query_results.take(0).map_err(|e| {
+                        tracing::debug!("blog_posts deserialization error: {}", e);
+                        Error::new("Internal Server Error".to_string())
+                    })?;
                 let professional_info: Option<
                     SurrealRelationQueryResponse<user::UserProfessionalInfo>,
-                > = query_results.take(1)?;
-                let portfolio: Option<SurrealRelationQueryResponse<user::UserPortfolio>> =
-                    query_results.take(2)?;
-                let resume: Option<SurrealRelationQueryResponse<user::UserResume>> =
-                    query_results.take(3)?;
+                > = query_results.take(1).map_err(|e| {
+                    tracing::debug!("professional_info deserialization error: {}", e);
+                    Error::new("Internal Server Error".to_string())
+                })?;
+                let portfolio: Vec<user::UserPortfolioOutput> =
+                    query_results.take(2).map_err(|e| {
+                        tracing::debug!("query_results: {:?}", query_results);
+                        tracing::debug!("portfolio deserialization error: {}", e);
+                        Error::new("Internal Server Error".to_string())
+                    })?;
+                let resume: Vec<user::UserResumeOutput> = query_results.take(3).map_err(|e| {
+                    tracing::debug!("resume deserialization error: {}", e);
+                    Error::new("Internal Server Error".to_string())
+                })?;
                 let skills: Option<SurrealRelationQueryResponse<user::UserSkill>> =
-                    query_results.take(4)?;
+                    query_results.take(4).map_err(|e| {
+                        tracing::debug!("skills deserialization error: {}", e);
+                        Error::new("Internal Server Error".to_string())
+                    })?;
                 let services: Option<SurrealRelationQueryResponse<user::UserService>> =
-                    query_results.take(5)?;
-                let mut achievements: ResumeAchievements = ResumeAchievements::new();
-                let mut portfolio_skills: UserPortfolioSkills = UserPortfolioSkills::new();
-
-                let resume_vec = match resume {
-                    Some(resume) => {
-                        let user_resume: Vec<UserResume> = resume
-                            .get("resume")
-                            .unwrap()
-                            .into_iter()
-                            .map(|resume| resume.to_owned())
-                            .collect();
-
-                        for resume in user_resume.clone().into_iter() {
-                            let user_resume = resume.clone();
-                            let mut query_results = db
-                                .query(
-                                    "SELECT ->has_achievement->achievement.* AS achievements FROM type::thing($resume_id)",
-                                )
-                                .bind((
-                                    "resume_id",
-                                    format!(
-                                        "resume:{}",
-                                        user_resume
-                                            .id
-                                            .as_ref()
-                                            .map(|t| &t.id)
-                                            .expect("id")
-                                            .to_raw()
-                                    ),
-                                ))
-                                .await
-                                .map_err(|e| Error::new(e.to_string()))?;
-
-                            let resume_achievements: Option<
-                                SurrealRelationQueryResponse<user::ResumeAchievement>,
-                            > = query_results.take(0)?;
-
-                            achievements.insert(
-                                resume.id.as_ref().map(|t| &t.id).expect("id").to_raw(),
-                                resume_achievements
-                                    .unwrap()
-                                    .get("achievements")
-                                    .unwrap()
-                                    .into_iter()
-                                    .map(|achievement| achievement.to_owned().description)
-                                    .collect(),
-                            );
-                        }
-
-                        user_resume
-                    }
-                    None => vec![],
-                };
-
-                let portfolio_vec = match portfolio {
-                    Some(portfolio) => {
-                        let user_portfolio: Vec<user::UserPortfolio> = portfolio
-                            .get("portfolios")
-                            .unwrap()
-                            .into_iter()
-                            .map(|portfolio| portfolio.to_owned())
-                            .collect();
-
-                        for portfolio in user_portfolio.clone().into_iter() {
-                            let user_portfolio = portfolio.clone();
-                            let mut query_results = db
-                                .query(
-                                    "SELECT ->has_skill->skill.* AS skills FROM type::thing($portfolio_id)",
-                                )
-                                .bind((
-                                    "portfolio_id",
-                                    format!(
-                                        "portfolio:{}",
-                                        user_portfolio
-                                            .id
-                                            .as_ref()
-                                            .map(|t| &t.id)
-                                            .expect("id")
-                                            .to_raw()
-                                    ),
-                                ))
-                                .await
-                                .map_err(|e| Error::new(e.to_string()))?;
-
-                            let portfolio_skills_val: Option<
-                                SurrealRelationQueryResponse<user::UserSkill>,
-                            > = query_results.take(0)?;
-
-                            portfolio_skills.insert(
-                                portfolio.id.as_ref().map(|t| &t.id).expect("id").to_raw(),
-                                portfolio_skills_val
-                                    .unwrap()
-                                    .get("skills")
-                                    .unwrap()
-                                    .into_iter()
-                                    .map(|skill| {
-                                        let mut skill_mut: UserSkill = skill.to_owned();
-                                        skill_mut.id = None;
-                                        skill_mut
-                                    })
-                                    .collect(),
-                            );
-                        }
-
-                        user_portfolio
-                    }
-                    None => vec![],
-                };
+                    query_results.take(5).map_err(|e| {
+                        tracing::debug!("services deserialization error: {}", e);
+                        Error::new("Internal Server Error".to_string())
+                    })?;
 
                 let user_resources = UserResources {
                     blog_posts: blog_posts
@@ -235,8 +147,8 @@ impl Query {
                         .into_iter()
                         .map(|info| info.to_owned())
                         .collect(),
-                    portfolio: portfolio_vec,
-                    resume: resume_vec,
+                    portfolio,
+                    resume,
                     skills: skills
                         .unwrap()
                         .get("skills")
@@ -244,7 +156,6 @@ impl Query {
                         .into_iter()
                         .map(|skill| skill.to_owned())
                         .collect(),
-                    achievements,
                     services: services
                         .unwrap()
                         .get("services")
@@ -252,7 +163,6 @@ impl Query {
                         .into_iter()
                         .map(|service| service.to_owned())
                         .collect(),
-                    portfolio_skills,
                 };
 
                 Ok(user_resources)
@@ -298,22 +208,19 @@ impl Query {
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .unwrap();
 
-        let auth_res_from_acl = check_auth_from_acl(ctx).await?;
+        let headers = ctx.data::<HeaderMap>().unwrap();
+
+        let _auth_res_from_acl = check_auth_from_acl(headers).await?;
 
         // fetch all messages in DB
-        match auth_res_from_acl {
-            Some(_) => {
-                let mut query_results = db
-                    .query("SELECT * FROM message")
-                    .await
-                    .map_err(|e| Error::new(e.to_string()))?;
+        let mut query_results = db
+            .query("SELECT * FROM message")
+            .await
+            .map_err(|e| Error::new(e.to_string()))?;
 
-                let messages: Vec<shared::Message> = query_results.take(0)?;
+        let messages: Vec<shared::Message> = query_results.take(0)?;
 
-                Ok(messages)
-            }
-            None => Err(Error::new("Unauthorized")),
-        }
+        Ok(messages)
     }
 
     pub async fn get_skills(

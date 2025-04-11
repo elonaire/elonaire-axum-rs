@@ -5,7 +5,7 @@ DEFINE FIELD user_id ON TABLE user_id TYPE string;
 DEFINE INDEX userIndex ON TABLE user_id COLUMNS user_id UNIQUE;
 
 -- A schema-full professional_details table.
-DEFINE TABLE professional_details SCHEMAFULL;
+DEFINE TABLE professional_details SCHEMAFULL TYPE RELATION IN user_id OUT user_id;
 -- define some fields.
 DEFINE FIELD occupation ON TABLE professional_details TYPE string;
 DEFINE FIELD active ON TABLE professional_details TYPE bool
@@ -18,188 +18,132 @@ DEFINE EVENT enforce_single_true ON professional_details WHEN $event = 'CREATE' 
         };
     };
 };
-DEFINE INDEX occupationIndex ON TABLE professional_details COLUMNS occupation;
+DEFINE INDEX occupationIndex ON TABLE professional_details COLUMNS occupation UNIQUE;
 DEFINE FIELD description ON TABLE professional_details TYPE string;
+-- I had to cast this way because the client submits a datetime string and explictly specifying datetime type gives an error
 DEFINE FIELD start_date ON TABLE professional_details VALUE <datetime>$value;
 DEFINE FIELD created_at ON TABLE professional_details TYPE datetime
-  DEFAULT time::now();
+  DEFAULT time::now() READONLY;
 DEFINE FIELD updated_at ON TABLE professional_details TYPE datetime
   VALUE time::now();
 
--- Relationship between user and professional_details
-DEFINE TABLE has_professional_details SCHEMAFULL TYPE RELATION IN user_id OUT professional_details;
-DEFINE INDEX userProfessionalDetailsIndex ON TABLE has_professional_details
-COLUMNS in, out UNIQUE;
-DEFINE INDEX userIdIndex ON TABLE has_professional_details
-COLUMNS in;
-DEFINE FIELD in ON TABLE has_professional_details TYPE record<user_id>;
-DEFINE FIELD out ON TABLE has_professional_details TYPE record<professional_details>;
-
 -- A schema-full portfolio table.
-DEFINE TABLE portfolio SCHEMAFULL;
+DEFINE TABLE portfolio SCHEMAFULL TYPE RELATION IN user_id OUT user_id;
 -- define some fields.
 DEFINE FIELD title ON TABLE portfolio TYPE string;
 DEFINE FIELD description ON TABLE portfolio TYPE string;
+-- I had to cast this way because the client submits a datetime string and explictly specifying datetime type gives an error
 DEFINE FIELD start_date ON TABLE portfolio VALUE <datetime>$value;
-DEFINE FIELD end_date ON TABLE portfolio VALUE
-  IF $value IS NOT NONE THEN <datetime>$value
-  ELSE NONE
-  END;
+DEFINE FIELD end_date ON TABLE portfolio TYPE option<datetime> VALUE IF $value IS NOT NONE { <datetime>$value } ELSE { NONE };
 DEFINE FIELD link ON TABLE portfolio TYPE string;
-DEFINE FIELD image ON TABLE portfolio TYPE string;
+DEFINE FIELD thumbnail ON TABLE portfolio TYPE string;
 DEFINE FIELD category ON TABLE portfolio TYPE string
 -- Allow only these values in the array
   ASSERT $value INSIDE ["JavaScript", "Rust", "Database", "Cloud", "DevOps", "Mobile"];
 DEFINE FIELD created_at ON TABLE portfolio TYPE datetime
-  DEFAULT time::now();
+  DEFAULT time::now() READONLY;
 DEFINE FIELD updated_at ON TABLE portfolio TYPE datetime
   VALUE time::now();
 
--- Relationship between user and portfolio
-DEFINE TABLE has_portfolio SCHEMAFULL TYPE RELATION IN user_id OUT portfolio;
-DEFINE INDEX userPortfolioIndex ON TABLE has_portfolio
-COLUMNS in, out UNIQUE;
-DEFINE FIELD in ON TABLE has_portfolio TYPE record<user_id>;
-DEFINE FIELD out ON TABLE has_portfolio TYPE record<portfolio>;
-
 -- A schema-full resume table.
-DEFINE TABLE resume SCHEMAFULL;
+DEFINE TABLE resume SCHEMAFULL TYPE RELATION IN user_id OUT user_id;
 -- define some fields.
 DEFINE FIELD section ON TABLE resume TYPE string
 -- Allow only these values in the array
   ASSERT $value INSIDE ["Education", "Experience", "Achievements", "Projects", "Certifications", "Volunteer", "Publications", "Languages", "Interests", "References"];
 DEFINE FIELD title ON TABLE resume TYPE string;
 DEFINE FIELD more_info ON TABLE resume TYPE string;
+-- I had to cast this way because the client submits a datetime string and explictly specifying datetime type gives an error
 DEFINE FIELD start_date ON TABLE resume VALUE <datetime>$value;
-DEFINE FIELD end_date ON TABLE resume VALUE
-  IF $value IS NOT NONE THEN <datetime>$value
-  ELSE NONE
-  END;
+DEFINE FIELD end_date ON TABLE resume TYPE option<datetime> VALUE IF $value IS NOT NONE { <datetime>$value } ELSE { NONE };
 DEFINE FIELD link ON TABLE resume TYPE option<string>
-  DEFAULT None;
+  DEFAULT NONE;
 DEFINE FIELD created_at ON TABLE resume TYPE datetime
-  DEFAULT time::now();
+  DEFAULT time::now() READONLY;
 DEFINE FIELD updated_at ON TABLE resume TYPE datetime
   VALUE time::now();
 
+
 -- A schema-full achievement table. Should relate to resume table
-DEFINE TABLE achievement SCHEMAFULL;
+DEFINE TABLE achievement SCHEMAFULL TYPE RELATION IN resume OUT resume;
 -- define some fields.
 DEFINE FIELD description ON TABLE achievement TYPE string;
 DEFINE FIELD created_at ON TABLE achievement TYPE datetime
-  DEFAULT time::now();
+  DEFAULT time::now() READONLY;
 DEFINE FIELD updated_at ON TABLE achievement TYPE datetime
   VALUE time::now();
 
--- Relationship between resume and achievement
-DEFINE TABLE has_achievement SCHEMAFULL TYPE RELATION IN resume OUT achievement;
-DEFINE INDEX resumeAchievementIndex ON TABLE has_achievement
-COLUMNS in, out UNIQUE;
-DEFINE FIELD in ON TABLE has_achievement TYPE record<resume>;
-DEFINE FIELD out ON TABLE has_achievement TYPE record<achievement>;
-
--- Relationship between user and resume
-DEFINE TABLE has_resume SCHEMAFULL TYPE RELATION IN user_id OUT resume;
-DEFINE INDEX userResumeIndex ON TABLE has_resume
-COLUMNS in, out UNIQUE;
-DEFINE FIELD in ON TABLE has_resume TYPE record<user_id>;
-DEFINE FIELD out ON TABLE has_resume TYPE record<resume>;
 
 -- Aschema-full service table.
-DEFINE TABLE service SCHEMAFULL;
+DEFINE TABLE service SCHEMAFULL TYPE RELATION IN user_id OUT user_id;
 -- define some fields.
 DEFINE FIELD title ON TABLE service TYPE string;
 DEFINE INDEX titleIndex ON TABLE service COLUMNS title UNIQUE;
 DEFINE FIELD description ON TABLE service TYPE string;
-DEFINE FIELD image ON TABLE service TYPE string;
+DEFINE FIELD thumbnail ON TABLE service TYPE string;
 DEFINE FIELD created_at ON TABLE service TYPE datetime
-  DEFAULT time::now();
+  DEFAULT time::now() READONLY;
 DEFINE FIELD updated_at ON TABLE service TYPE datetime
   VALUE time::now();
 
--- Relationship between user and service
-DEFINE TABLE offers_service SCHEMAFULL TYPE RELATION IN user_id OUT service;
-DEFINE INDEX userServiceIndex ON TABLE offers_service
-COLUMNS in, out UNIQUE;
-DEFINE FIELD in ON TABLE offers_service TYPE record<user_id>;
-DEFINE FIELD out ON TABLE offers_service TYPE record<service>;
 
 -- A schema-full blog post table.
-DEFINE TABLE blog_post SCHEMAFULL;
+DEFINE TABLE blog_post SCHEMAFULL TYPE RELATION IN user_id OUT user_id;
 -- define some fields.
 DEFINE FIELD title ON TABLE blog_post TYPE string;
 DEFINE FIELD short_description ON TABLE blog_post TYPE string;
-DEFINE FIELD image ON TABLE blog_post TYPE string;
+DEFINE FIELD thumbnail ON TABLE blog_post TYPE string;
+DEFINE FIELD content_file ON TABLE blog_post TYPE string;
+DEFINE FIELD other_images ON TABLE blog_post TYPE array<string>;
 DEFINE FIELD category ON TABLE blog_post TYPE string
 -- Allow only these values in the array
   ASSERT $value INSIDE ["WebDevelopment", "MobileDevelopment", "ArtificialIntelligence", "Technology", "Lifestyle"];
-DEFINE FIELD link ON TABLE blog_post TYPE string;
+DEFINE FIELD link ON TABLE blog_post TYPE string VALUE string::slug(title);
 DEFINE INDEX blogPostIndex ON TABLE blog_post COLUMNS link UNIQUE;
 DEFINE FIELD status ON TABLE blog_post TYPE option<string>
 -- Allow only these values in the array
-  ASSERT $value INSIDE ["Draft", "Published"]
-  DEFAULT "Published";
-DEFINE FIELD published_date ON TABLE blog_post TYPE datetime
-  DEFAULT time::now();
--- remove this for now, we want to use the default value
-  -- IF $value IS NOT NONE THEN <datetime>$value
-  -- ELSE NONE
-  -- END;
+  ASSERT $value INSIDE ["Draft", "Published", "Archived"]
+  DEFAULT "Draft";
+DEFINE FIELD published_date ON TABLE blog_post TYPE option<datetime> VALUE
+  IF $value IS NOT NONE { <datetime>$value }ELSE { NONE };
 DEFINE FIELD is_featured ON TABLE blog_post TYPE bool
   DEFAULT false;
 DEFINE FIELD is_premium ON TABLE blog_post TYPE bool
   DEFAULT false;
 DEFINE FIELD created_at ON TABLE blog_post TYPE datetime
-  DEFAULT time::now();
+  DEFAULT time::now() READONLY;
 DEFINE FIELD updated_at ON TABLE blog_post TYPE datetime
   VALUE time::now();
 
--- Relationship between user and blog_post
-DEFINE TABLE has_blog_post SCHEMAFULL TYPE RELATION IN user_id OUT blog_post;
-DEFINE INDEX userBlogPostIndex ON TABLE has_blog_post
-COLUMNS in, out UNIQUE;
-DEFINE FIELD in ON TABLE has_blog_post TYPE record<user_id>;
-DEFINE FIELD out ON TABLE has_blog_post TYPE record<blog_post>;
 
 -- A schema-full comment table.
-DEFINE TABLE comment SCHEMAFULL;
+DEFINE TABLE comment SCHEMAFULL TYPE NORMAL;
 -- define some fields.
 DEFINE FIELD content ON TABLE comment TYPE string;
--- DEFINE FIELD published_date ON TABLE comment VALUE <datetime>$value;
 DEFINE FIELD created_at ON TABLE comment TYPE datetime
-  DEFAULT time::now();
+  DEFAULT time::now() READONLY;
 DEFINE FIELD updated_at ON TABLE comment TYPE datetime
   VALUE time::now();
 
--- Relationship between user, blog_post and comment
-DEFINE TABLE has_comment SCHEMAFULL TYPE RELATION IN user_id | blog_post OUT comment;
-DEFINE INDEX commentIndex ON TABLE has_comment
-COLUMNS in, out UNIQUE;
-DEFINE FIELD in ON TABLE has_comment TYPE record<user_id | blog_post>;
-DEFINE FIELD out ON TABLE has_comment TYPE record<comment>;
 
--- Relationship between comment and comment
+-- A schema-full user_id-comment as writer relation table.
+DEFINE TABLE wrote SCHEMAFULL TYPE RELATION IN user_id OUT comment;
+
+-- A schema-full blog_post-comment relation table.
+DEFINE TABLE has_comment SCHEMAFULL TYPE RELATION IN blog_post OUT comment;
+
+-- A schema-full comment-comment as reply relation table.
 DEFINE TABLE has_reply SCHEMAFULL TYPE RELATION IN comment OUT comment;
-DEFINE INDEX commentCommentIndex ON TABLE has_reply
-COLUMNS in, out UNIQUE;
-DEFINE FIELD in ON TABLE has_reply TYPE record<comment>;
-DEFINE FIELD out ON TABLE has_reply TYPE record<comment>;
 
 -- A schema-full reaction table.
-DEFINE TABLE reaction SCHEMAFULL;
+DEFINE TABLE reaction SCHEMAFULL TYPE RELATION IN user_id OUT blog_post | comment;
 -- define some fields.
 DEFINE FIELD type ON TABLE reaction TYPE string
 -- Allow only these values in the array
   ASSERT $value INSIDE ["Like", "Dislike", "Love", "Haha", "Wow", "Sad", "Angry"];
 DEFINE FIELD created_at ON TABLE reaction TYPE datetime
-  DEFAULT time::now();
+  DEFAULT time::now() READONLY;
 
--- Relationship between user, blog_post, comment and reaction
-DEFINE TABLE has_reaction SCHEMAFULL TYPE RELATION IN user_id | blog_post | comment OUT reaction;
-DEFINE INDEX reactionIndex ON TABLE has_reaction
-COLUMNS in, out UNIQUE;
-DEFINE FIELD in ON TABLE has_reaction TYPE record<user_id | blog_post | comment>;
-DEFINE FIELD out ON TABLE has_reaction TYPE record<reaction>;
 
 -- A schema-full message table.
 DEFINE TABLE message SCHEMAFULL;
@@ -212,57 +156,40 @@ DEFINE FIELD subject ON TABLE message TYPE string
   ASSERT $value INSIDE ["JobOffer", "Consultation", "Feedback", "Complaint", "Suggestion", "Enquiry"];
 DEFINE FIELD body ON TABLE message TYPE string;
 DEFINE FIELD created_at ON TABLE message TYPE datetime
-  DEFAULT time::now();
+  DEFAULT time::now() READONLY;
 
--- A schema-full file table.
-DEFINE TABLE file SCHEMAFULL;
--- define some fields.
-DEFINE FIELD name ON TABLE file TYPE string;
-DEFINE FIELD type ON TABLE file TYPE string;
-DEFINE FIELD size ON TABLE file TYPE string;
-DEFINE FIELD url ON TABLE file TYPE string;
-DEFINE FIELD created_at ON TABLE file TYPE datetime
-  DEFAULT time::now();
-
--- Relationship between user and file
-DEFINE TABLE has_file SCHEMAFULL TYPE RELATION IN user_id OUT file;
-DEFINE INDEX fileIndex ON TABLE has_file
-COLUMNS in, out UNIQUE;
-DEFINE FIELD in ON TABLE has_file TYPE record<user_id>;
-DEFINE FIELD out ON TABLE has_file TYPE record<file>;
 
 -- A schema-full notification table.
 DEFINE TABLE notification SCHEMAFULL;
 -- define some fields.
 DEFINE FIELD content ON TABLE notification TYPE string;
 DEFINE FIELD created_at ON TABLE notification TYPE datetime
-  DEFAULT time::now();
+  DEFAULT time::now() READONLY;
 
 -- A schema-full skill table.
-DEFINE TABLE skill SCHEMAFULL;
+DEFINE TABLE skill SCHEMAFULL TYPE RELATION IN user_id OUT user_id;
 -- define some fields.
 DEFINE FIELD name ON TABLE skill TYPE string;
 DEFINE FIELD type ON TABLE skill TYPE string
 -- Allow only these values in the array
   ASSERT $value INSIDE ["Technical", "Soft"];
 DEFINE INDEX skillIndex ON TABLE skill COLUMNS name UNIQUE;
-DEFINE FIELD image ON TABLE skill TYPE string;
+DEFINE FIELD thumbnail ON TABLE skill TYPE string;
 DEFINE FIELD level ON TABLE skill TYPE option<string>
 -- Allow only these values in the array
   ASSERT $value INSIDE ["Beginner", "Intermediate", "Advanced", "Expert", None]
   DEFAULT None;
+-- I had to cast this way because the client submits a datetime string and explictly specifying datetime type gives an error
 DEFINE FIELD start_date ON TABLE skill VALUE <datetime>$value;
 DEFINE FIELD created_at ON TABLE skill TYPE datetime
-  DEFAULT time::now();
+  DEFAULT time::now() READONLY;
 DEFINE FIELD updated_at ON TABLE skill TYPE datetime
   VALUE time::now();
 
--- Relationship between user and skill
-DEFINE TABLE has_skill SCHEMAFULL TYPE RELATION IN user_id OUT skill;
-DEFINE INDEX skillIndex ON TABLE has_skill
+-- Relationship between portfolio and skill
+DEFINE TABLE uses_skill SCHEMAFULL TYPE RELATION IN portfolio OUT skill;
+DEFINE INDEX skillIndex ON TABLE uses_skill
 COLUMNS in, out UNIQUE;
-DEFINE FIELD in ON TABLE has_skill TYPE record<user_id>;
-DEFINE FIELD out ON TABLE has_skill TYPE record<skill>;
 
 /* Migrations */
 -- Migration for blog post table
