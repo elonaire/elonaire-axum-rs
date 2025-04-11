@@ -52,6 +52,7 @@ pub struct BlogPost {
     pub published_date: Option<String>,
     pub is_featured: Option<bool>,
     pub is_premium: Option<bool>,
+    pub comments: Vec<BlogComment>,
     pub created_at: Option<String>,
     pub updated_at: Option<String>,
 }
