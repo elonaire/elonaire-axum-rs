@@ -7,7 +7,7 @@ use surrealdb::{engine::remote::ws::Client as SurrealClient, Surreal};
 
 use crate::graphql::schemas::{
     blog,
-    shared::{self, SurrealRelationQueryResponse},
+    shared::{self},
     user::{self, UserResources},
 };
 
