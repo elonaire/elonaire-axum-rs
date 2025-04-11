@@ -111,13 +111,12 @@ impl Query {
                     tracing::debug!("professional_info deserialization error: {}", e);
                     Error::new("Internal Server Error".to_string())
                 })?;
-                let portfolio: Vec<user::UserPortfolioOutput> =
-                    query_results.take(2).map_err(|e| {
-                        tracing::debug!("query_results: {:?}", query_results);
-                        tracing::debug!("portfolio deserialization error: {}", e);
-                        Error::new("Internal Server Error".to_string())
-                    })?;
-                let resume: Vec<user::UserResumeOutput> = query_results.take(3).map_err(|e| {
+                let portfolio: Vec<user::UserPortfolio> = query_results.take(2).map_err(|e| {
+                    tracing::debug!("query_results: {:?}", query_results);
+                    tracing::debug!("portfolio deserialization error: {}", e);
+                    Error::new("Internal Server Error".to_string())
+                })?;
+                let resume: Vec<user::UserResume> = query_results.take(3).map_err(|e| {
                     tracing::debug!("resume deserialization error: {}", e);
                     Error::new("Internal Server Error".to_string())
                 })?;

@@ -15,8 +15,28 @@ use serde::{Deserialize, Serialize};
 use surrealdb::sql::{Datetime, Thing};
 use tonic::transport::Channel;
 
-#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject, InputObject)]
+#[derive(Clone, Debug, Serialize, Deserialize, InputObject)]
 #[graphql(input_name = "BlogPostInput")]
+pub struct BlogPostInput {
+    #[graphql(skip)]
+    pub id: Option<Thing>,
+    pub title: String,
+    pub short_description: String,
+    pub status: Option<BlogStatus>,
+    pub thumbnail: String,
+    pub content_file: String,
+    pub other_images: Vec<String>,
+    pub category: BlogCategory,
+    #[graphql(skip)]
+    pub link: String,
+    pub published_date: Option<String>,
+    pub is_featured: Option<bool>,
+    pub is_premium: Option<bool>,
+    pub created_at: Option<String>,
+    pub updated_at: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
 #[graphql(complex)]
 pub struct BlogPost {
     #[graphql(skip)]
@@ -28,7 +48,6 @@ pub struct BlogPost {
     pub content_file: String,
     pub other_images: Vec<String>,
     pub category: BlogCategory,
-    #[graphql(skip)]
     pub link: String,
     pub published_date: Option<String>,
     pub is_featured: Option<bool>,
@@ -208,10 +227,6 @@ impl BlogPost {
         } else {
             "No content to show".to_string()
         }
-    }
-
-    async fn link(&self) -> String {
-        self.link.clone()
     }
 }
 

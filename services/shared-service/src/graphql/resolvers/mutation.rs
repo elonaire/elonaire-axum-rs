@@ -145,8 +145,8 @@ impl Mutation {
     pub async fn add_portfolio_item(
         &self,
         ctx: &Context<'_>,
-        portfolio_item: user::UserPortfolio,
-    ) -> async_graphql::Result<Vec<user::UserPortfolioOutput>> {
+        portfolio_item: user::UserPortfolioInput,
+    ) -> async_graphql::Result<Vec<user::UserPortfolio>> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .unwrap();
@@ -191,11 +191,10 @@ impl Mutation {
                 Error::new("Internal Server Error")
             })?;
 
-        let response: Vec<user::UserPortfolioOutput> =
-            database_transaction.take(0).map_err(|_e| {
-                tracing::debug!("database_transaction: {:?}", database_transaction);
-                Error::new("Internal Server Error")
-            })?;
+        let response: Vec<user::UserPortfolio> = database_transaction.take(0).map_err(|_e| {
+            tracing::debug!("database_transaction: {:?}", database_transaction);
+            Error::new("Internal Server Error")
+        })?;
 
         Ok(response)
     }
@@ -204,8 +203,8 @@ impl Mutation {
     pub async fn add_resume_item(
         &self,
         ctx: &Context<'_>,
-        resume_item: user::UserResume,
-    ) -> async_graphql::Result<Vec<user::UserResumeOutput>> {
+        resume_item: user::UserResumeInput,
+    ) -> async_graphql::Result<Vec<user::UserResume>> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .unwrap();
@@ -250,7 +249,7 @@ impl Mutation {
                 Error::new("Internal Server Error")
             })?;
 
-        let response: Vec<user::UserResumeOutput> = database_transaction.take(0).map_err(|_e| {
+        let response: Vec<user::UserResume> = database_transaction.take(0).map_err(|_e| {
             tracing::debug!("database_transaction: {:?}", database_transaction);
             Error::new("Internal Server Error")
         })?;
@@ -380,7 +379,7 @@ impl Mutation {
     pub async fn add_blog_post(
         &self,
         ctx: &Context<'_>,
-        blog_post: blog::BlogPost,
+        blog_post: blog::BlogPostInput,
     ) -> async_graphql::Result<Vec<blog::BlogPost>> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
