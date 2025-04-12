@@ -12,7 +12,6 @@ use lib::{
 };
 use surrealdb::{engine::remote::ws::Client as SurrealClient, Surreal};
 
-use crate::graphql::schemas::blog::BlogPost;
 use crate::graphql::schemas::user::UserProfessionalInfo;
 use crate::graphql::schemas::{blog, shared, user};
 
@@ -783,7 +782,7 @@ impl Mutation {
         ctx: &Context<'_>,
         blog_post: blog::BlogPostUpdate,
         blog_post_id: String,
-    ) -> async_graphql::Result<blog::BlogPost> {
+    ) -> async_graphql::Result<blog::BlogPostUpdateResponse> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .unwrap();
@@ -791,8 +790,8 @@ impl Mutation {
 
         let _auth_res_from_acl = check_auth_from_acl(headers).await?;
 
-        let response: Option<BlogPost> = db
-            .update(("blog_post", blog_post_id.clone()))
+        let response: Option<blog::BlogPostUpdateResponse> = db
+            .update(("blog_post", blog_post_id))
             .merge(blog_post)
             .await
             .map_err(|e| {
