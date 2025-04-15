@@ -6,7 +6,7 @@ use hyper::HeaderMap;
 use surrealdb::{engine::remote::ws::Client as SurrealClient, Surreal};
 
 use crate::graphql::schemas::{
-    blog,
+    blog::{self, BlogStatus},
     shared::{self},
     user::{self, UserResources},
 };
@@ -21,15 +21,26 @@ impl Query {
     pub async fn get_blog_posts(
         &self,
         ctx: &Context<'_>,
+        status: BlogStatus,
     ) -> async_graphql::Result<Vec<blog::BlogPost>> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .unwrap();
 
-        let result = db
-            .select("blog_post")
+        let mut query_result = db
+            // .select("blog_post")
+            .query("SELECT *, ->has_comment->comment[*] AS comments FROM blog_post WHERE status = $status")
+            .bind(("status", status))
             .await
-            .map_err(|e| Error::new(e.to_string()))?;
+            .map_err(|e| {
+                tracing::debug!("DB Query error: {}", e);
+                Error::new("Internal Server Error".to_string())
+            })?;
+
+        let result: Vec<blog::BlogPost> = query_result.take(0).map_err(|e| {
+            tracing::debug!("blog_posts deserialization error: {}", e);
+            Error::new("Internal Server Error".to_string())
+        })?;
 
         Ok(result)
     }
