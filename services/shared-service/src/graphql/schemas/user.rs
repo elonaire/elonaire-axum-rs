@@ -20,7 +20,7 @@ pub struct UserProfessionalInfo {
 #[derive(Clone, Debug, Serialize, Deserialize, InputObject)]
 #[graphql(input_name = "UserPortfolioInput")]
 #[graphql(complex)]
-pub struct UserPortfolio {
+pub struct UserPortfolioInput {
     #[graphql(skip)]
     pub id: Option<Thing>,
     pub title: String,
@@ -34,7 +34,7 @@ pub struct UserPortfolio {
 
 #[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
 #[graphql(complex)]
-pub struct UserPortfolioOutput {
+pub struct UserPortfolio {
     #[graphql(skip)]
     pub id: Option<Thing>,
     pub title: String,
@@ -65,7 +65,7 @@ pub enum UserPortfolioCategory {
 }
 
 #[ComplexObject]
-impl UserPortfolioOutput {
+impl UserPortfolio {
     async fn id(&self) -> String {
         self.id.as_ref().map(|t| &t.id).expect("id").to_raw()
     }
@@ -105,7 +105,7 @@ impl UserPortfolioOutput {
 
 #[derive(Clone, Debug, Serialize, Deserialize, InputObject)]
 #[graphql(input_name = "UserResumeInput")]
-pub struct UserResume {
+pub struct UserResumeInput {
     #[graphql(skip)]
     pub id: Option<Thing>,
     pub title: String,
@@ -118,7 +118,7 @@ pub struct UserResume {
 
 #[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
 #[graphql(complex)]
-pub struct UserResumeOutput {
+pub struct UserResume {
     #[graphql(skip)]
     pub id: Option<Thing>,
     pub title: String,
@@ -131,7 +131,7 @@ pub struct UserResumeOutput {
 }
 
 #[ComplexObject]
-impl UserResumeOutput {
+impl UserResume {
     async fn id(&self) -> String {
         self.id.as_ref().map(|t| &t.id).expect("id").to_raw()
     }
@@ -275,8 +275,8 @@ impl UserService {
 pub struct UserResources {
     pub blog_posts: Vec<BlogPost>,
     pub professional_info: Vec<UserProfessionalInfo>,
-    pub portfolio: Vec<UserPortfolioOutput>,
-    pub resume: Vec<UserResumeOutput>,
+    pub portfolio: Vec<UserPortfolio>,
+    pub resume: Vec<UserResume>,
     pub skills: Vec<UserSkill>,
     pub services: Vec<UserService>,
 }

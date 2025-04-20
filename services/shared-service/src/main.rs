@@ -4,17 +4,9 @@ mod graphql;
 
 use std::{env, sync::Arc};
 
-use async_graphql::{
-    http::{Credentials, GraphiQLSource},
-    EmptySubscription, Schema,
-};
+use async_graphql::{EmptySubscription, Schema};
 use async_graphql_axum::{GraphQLRequest, GraphQLResponse};
-use axum::{
-    http::HeaderValue,
-    response::{Html, IntoResponse},
-    routing::get,
-    serve, Extension, Router,
-};
+use axum::{http::HeaderValue, routing::post, serve, Extension, Router};
 use graphql::resolvers::{mutation::Mutation, query::Query};
 use hyper::{
     header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE},
@@ -59,24 +51,26 @@ async fn graphql_handler(
     response.into()
 }
 
-async fn graphiql() -> impl IntoResponse {
-    Html(
-        GraphiQLSource::build()
-            .endpoint("/")
-            .title("Shared Service")
-            .credentials(Credentials::Include)
-            .finish(),
-    )
-}
-
 #[tokio::main]
 async fn main() -> Result<()> {
     let db = Arc::new(database::connection::create_db_connection().await.unwrap());
 
-    let schema = Schema::build(Query, Mutation, EmptySubscription).finish();
-
+    // Import env vars
+    let deployment_env = env::var("ENVIRONMENT").unwrap_or_else(|_| "prod".to_string()); // default to production because it's the most secure
     let allowed_services_cors = env::var("ALLOWED_SERVICES_CORS")
         .expect("Missing the ALLOWED_SERVICES environment variable.");
+    let shared_service_http_port = env::var("SHARED_SERVICE_HTTP_PORT")
+        .expect("Missing the SHARED_SERVICE_HTTP_PORT environment variable.");
+
+    // Initialize the schema builder
+    let mut schema_builder = Schema::build(Query, Mutation, EmptySubscription);
+    // Disable introspection & limit query depth in production
+    schema_builder = match deployment_env.as_str() {
+        "prod" => schema_builder.disable_introspection().limit_depth(5),
+        _ => schema_builder,
+    };
+
+    let schema = schema_builder.finish();
 
     let origins: Vec<HeaderValue> = allowed_services_cors
         .as_str()
@@ -89,7 +83,11 @@ async fn main() -> Result<()> {
     let file_appender = tracing_appender::rolling::daily("./logs", "shared.log");
     let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
 
-    let stdout = std::io::stdout.with_max_level(tracing::Level::DEBUG); // Log to console at DEBUG level
+    let stdout = std::io::stdout
+        .with_filter(|meta| {
+            meta.target() != "h2::codec::framed_write" && meta.target() != "h2::codec::framed_read"
+        })
+        .with_max_level(tracing::Level::DEBUG); // Log to console at DEBUG level
 
     tracing_subscriber::fmt()
         .with_max_level(tracing::Level::DEBUG)
@@ -97,7 +95,7 @@ async fn main() -> Result<()> {
         .init();
 
     let app = Router::new()
-        .route("/", get(graphiql).post(graphql_handler))
+        .route("/", post(graphql_handler))
         .layer(Extension(schema))
         .layer(Extension(db))
         .layer(
@@ -108,7 +106,9 @@ async fn main() -> Result<()> {
                 .allow_methods(vec![Method::GET, Method::POST]),
         );
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3002").await.unwrap();
+    let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", shared_service_http_port))
+        .await
+        .unwrap();
     serve(listener, app).await.unwrap();
 
     Ok(())

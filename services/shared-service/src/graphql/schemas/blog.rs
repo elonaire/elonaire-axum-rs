@@ -15,10 +15,9 @@ use serde::{Deserialize, Serialize};
 use surrealdb::sql::{Datetime, Thing};
 use tonic::transport::Channel;
 
-#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject, InputObject)]
+#[derive(Clone, Debug, Serialize, Deserialize, InputObject)]
 #[graphql(input_name = "BlogPostInput")]
-#[graphql(complex)]
-pub struct BlogPost {
+pub struct BlogPostInput {
     #[graphql(skip)]
     pub id: Option<Thing>,
     pub title: String,
@@ -33,6 +32,27 @@ pub struct BlogPost {
     pub published_date: Option<String>,
     pub is_featured: Option<bool>,
     pub is_premium: Option<bool>,
+    pub created_at: Option<String>,
+    pub updated_at: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
+#[graphql(complex)]
+pub struct BlogPost {
+    #[graphql(skip)]
+    pub id: Option<Thing>,
+    pub title: String,
+    pub short_description: String,
+    pub status: Option<BlogStatus>,
+    pub thumbnail: String,
+    pub content_file: String,
+    pub other_images: Vec<String>,
+    pub category: BlogCategory,
+    pub link: String,
+    pub published_date: Option<String>,
+    pub is_featured: Option<bool>,
+    pub is_premium: Option<bool>,
+    pub comments: Vec<BlogComment>,
     pub created_at: Option<String>,
     pub updated_at: Option<String>,
 }
@@ -55,7 +75,7 @@ pub struct BlogPostUpdate {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub short_description: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub status: Option<String>,
+    pub status: Option<BlogStatus>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub thumbnail: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -72,6 +92,33 @@ pub struct BlogPostUpdate {
     pub created_at: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub updated_at: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
+#[graphql(complex)]
+pub struct BlogPostUpdateResponse {
+    #[graphql(skip)]
+    pub id: Option<Thing>,
+    pub title: String,
+    pub short_description: String,
+    pub status: Option<BlogStatus>,
+    pub thumbnail: String,
+    pub content_file: String,
+    pub other_images: Vec<String>,
+    pub category: BlogCategory,
+    pub link: String,
+    pub published_date: Option<String>,
+    pub is_featured: Option<bool>,
+    pub is_premium: Option<bool>,
+    pub created_at: Option<String>,
+    pub updated_at: Option<String>,
+}
+
+#[ComplexObject]
+impl BlogPostUpdateResponse {
+    async fn id(&self) -> String {
+        self.id.as_ref().map(|t| &t.id).expect("id").to_raw()
+    }
 }
 
 // enum for BlogCategory: "WebDevelopment", "MobileDevelopment", "AI", "Technology", "Lifestyle"
@@ -208,10 +255,6 @@ impl BlogPost {
         } else {
             "No content to show".to_string()
         }
-    }
-
-    async fn link(&self) -> String {
-        self.link.clone()
     }
 }
 

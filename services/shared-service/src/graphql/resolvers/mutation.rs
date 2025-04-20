@@ -12,7 +12,6 @@ use lib::{
 };
 use surrealdb::{engine::remote::ws::Client as SurrealClient, Surreal};
 
-use crate::graphql::schemas::blog::BlogPost;
 use crate::graphql::schemas::user::UserProfessionalInfo;
 use crate::graphql::schemas::{blog, shared, user};
 
@@ -145,8 +144,8 @@ impl Mutation {
     pub async fn add_portfolio_item(
         &self,
         ctx: &Context<'_>,
-        portfolio_item: user::UserPortfolio,
-    ) -> async_graphql::Result<Vec<user::UserPortfolioOutput>> {
+        portfolio_item: user::UserPortfolioInput,
+    ) -> async_graphql::Result<Vec<user::UserPortfolio>> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .unwrap();
@@ -191,11 +190,10 @@ impl Mutation {
                 Error::new("Internal Server Error")
             })?;
 
-        let response: Vec<user::UserPortfolioOutput> =
-            database_transaction.take(0).map_err(|_e| {
-                tracing::debug!("database_transaction: {:?}", database_transaction);
-                Error::new("Internal Server Error")
-            })?;
+        let response: Vec<user::UserPortfolio> = database_transaction.take(0).map_err(|_e| {
+            tracing::debug!("database_transaction: {:?}", database_transaction);
+            Error::new("Internal Server Error")
+        })?;
 
         Ok(response)
     }
@@ -204,8 +202,8 @@ impl Mutation {
     pub async fn add_resume_item(
         &self,
         ctx: &Context<'_>,
-        resume_item: user::UserResume,
-    ) -> async_graphql::Result<Vec<user::UserResumeOutput>> {
+        resume_item: user::UserResumeInput,
+    ) -> async_graphql::Result<Vec<user::UserResume>> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .unwrap();
@@ -250,7 +248,7 @@ impl Mutation {
                 Error::new("Internal Server Error")
             })?;
 
-        let response: Vec<user::UserResumeOutput> = database_transaction.take(0).map_err(|_e| {
+        let response: Vec<user::UserResume> = database_transaction.take(0).map_err(|_e| {
             tracing::debug!("database_transaction: {:?}", database_transaction);
             Error::new("Internal Server Error")
         })?;
@@ -380,7 +378,7 @@ impl Mutation {
     pub async fn add_blog_post(
         &self,
         ctx: &Context<'_>,
-        blog_post: blog::BlogPost,
+        blog_post: blog::BlogPostInput,
     ) -> async_graphql::Result<Vec<blog::BlogPost>> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
@@ -471,9 +469,9 @@ impl Mutation {
             "
             BEGIN TRANSACTION;
             -- Get the user
-            LET $user = (SELECT id FROM type::table($user_table) WHERE user_id = $user_id LIMIT 1);
+            LET $user = (SELECT VALUE id FROM ONLY type::table($user_table) WHERE user_id = $user_id LIMIT 1);
             -- Get the blog post
-            LET $blog_post = (SELECT id FROM type::table($blog_table) WHERE id = type::thing($blog_post_id) LIMIT 1);
+            LET $blog_post = (SELECT VALUE id FROM ONLY type::table($blog_table) WHERE id = type::thing($blog_post_id) LIMIT 1);
             -- Create comment
             LET $blog_comment = CREATE comment CONTENT $blog_comment_input;
             LET $blog_comment_id = (SELECT VALUE id FROM $blog_comment);
@@ -481,7 +479,7 @@ impl Mutation {
             -- Relate the comment to the blog post
             RELATE $blog_post->has_comment->$blog_comment_id;
             -- Relate the comment to the user
-            RELATE $user->has_comment->$blog_comment_id;
+            RELATE $user->wrote->$blog_comment_id;
             RETURN $blog_comment;
             COMMIT TRANSACTION;
             "
@@ -492,11 +490,15 @@ impl Mutation {
         .bind(("user_id", auth_res_from_acl.sub))
         .bind(("user_table", "user_id"))
         .await
-        .map_err(|e| Error::new(e.to_string()))?;
+        .map_err(|e| {
+            tracing::debug!("DB Query Error: {}", e);
+            Error::new("Internal Server Error")
+        })?;
 
-        let response: Vec<blog::BlogComment> = database_transaction
-            .take(0)
-            .map_err(|e| Error::new(e.to_string()))?;
+        let response: Vec<blog::BlogComment> = database_transaction.take(0).map_err(|_e| {
+            tracing::debug!("database_transaction: {:?}", database_transaction);
+            Error::new("Internal Server Error")
+        })?;
 
         Ok(response)
     }
@@ -507,7 +509,6 @@ impl Mutation {
         ctx: &Context<'_>,
         blog_comment: blog::BlogComment,
         comment_id: String,
-        blog_post_id: String,
     ) -> async_graphql::Result<Vec<blog::BlogComment>> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
@@ -538,9 +539,8 @@ impl Mutation {
             "
             BEGIN TRANSACTION;
             -- Get the user, parent comment and blog post
-            LET $parent_comment = (SELECT id FROM type::table($comment_table) WHERE id = type::thing($comment_id) LIMIT 1);
-            LET $user = (SELECT id FROM type::table($user_table) WHERE user_id = $user_id LIMIT 1);
-            LET $blog_post = (SELECT id FROM type::table($blog_table) WHERE id = type::thing($blog_post_id) LIMIT 1);
+            LET $parent_comment = (SELECT VALUE id FROM ONLY type::table($comment_table) WHERE id = type::thing($comment_id) LIMIT 1);
+            LET $user = (SELECT VALUE id FROM ONLY type::table($user_table) WHERE user_id = $user_id LIMIT 1);
 
             -- Create comment reply
             LET $comment_reply = CREATE comment CONTENT $blog_comment_input;
@@ -548,7 +548,7 @@ impl Mutation {
 
             -- Relate the comment reply to the parent comment and the user
             RELATE $parent_comment->has_reply->$comment_reply_id;
-            RELATE $user->has_comment->$comment_reply_id;
+            RELATE $user->wrote->$comment_reply_id;
 
             RETURN $comment_reply;
             COMMIT TRANSACTION;
@@ -559,14 +559,16 @@ impl Mutation {
         .bind(("comment_id", format!("comment:{}", comment_id)))
         .bind(("user_id", auth_res_from_acl.sub))
         .bind(("user_table", "user_id"))
-        .bind(("blog_table", "blog_post"))
-        .bind(("blog_post_id", format!("blog_post:{}", blog_post_id)))
         .await
-        .map_err(|e| Error::new(e.to_string()))?;
+        .map_err(|e| {
+            tracing::debug!("DB Query Error: {}", e);
+            Error::new("Internal Server Error")
+        })?;
 
-        let response: Vec<blog::BlogComment> = database_transaction
-            .take(0)
-            .map_err(|e| Error::new(e.to_string()))?;
+        let response: Vec<blog::BlogComment> = database_transaction.take(0).map_err(|_e| {
+            tracing::debug!("database_transaction: {:?}", database_transaction);
+            Error::new("Internal Server Error")
+        })?;
 
         Ok(response)
     }
@@ -607,18 +609,12 @@ impl Mutation {
             "
             BEGIN TRANSACTION;
             -- Get the user and blog post
-            LET $user = (SELECT id FROM type::table($user_table) WHERE user_id = $user_id LIMIT 1);
-            LET $blog_post = (SELECT id FROM type::table($blog_table) WHERE id = type::thing($blog_post_id) LIMIT 1);
+            LET $user = (SELECT VALUE id FROM ONLY type::table($user_table) WHERE user_id = $user_id LIMIT 1);
+            LET $blog_post = (SELECT VALUE id FROM ONLY type::table($blog_table) WHERE id = type::thing($blog_post_id) LIMIT 1);
 
-            -- Create reaction
-            LET $reaction = CREATE reaction CONTENT $reaction_input;
-            LET $reaction_id = (SELECT VALUE id FROM $reaction);
 
-            -- Relate the reaction to the user
-            RELATE $user->has_reaction->$reaction_id;
-
-            -- Relate the reaction to the blog post
-            RELATE $blog_post->has_reaction->$reaction_id;
+            -- Relate the reaction to the user and blog_post
+            LET $reaction = (RELATE $user->reaction->$blog_post CONTENT $reaction_input RETURN AFTER);
 
             RETURN $reaction;
             COMMIT TRANSACTION;
@@ -630,11 +626,15 @@ impl Mutation {
         .bind(("blog_table", "blog_post"))
         .bind(("blog_post_id", format!("blog_post:{}", blog_post_id)))
         .await
-        .map_err(|e| Error::new(e.to_string()))?;
+        .map_err(|e| {
+            tracing::debug!("DB Query Error: {}", e);
+            Error::new("Internal Server Error")
+        })?;
 
-        let response: Vec<shared::Reaction> = database_transaction
-            .take(0)
-            .map_err(|e| Error::new(e.to_string()))?;
+        let response: Vec<shared::Reaction> = database_transaction.take(0).map_err(|_e| {
+            tracing::debug!("database_transaction: {:?}", database_transaction);
+            Error::new("Internal Server Error")
+        })?;
 
         Ok(response)
     }
@@ -674,19 +674,12 @@ impl Mutation {
         .query(
             "
             BEGIN TRANSACTION;
-            -- Get the user, comment and blog post
-            LET $user = (SELECT id FROM type::table($user_table) WHERE user_id = $user_id LIMIT 1);
-            LET $comment = (SELECT id FROM type::table($comment_table) WHERE id = type::thing($comment_id) LIMIT 1);
-
-            -- Create reaction
-            LET $reaction = CREATE reaction CONTENT $reaction_input;
-            LET $reaction_id = (SELECT VALUE id FROM $reaction);
+            -- Get the user, comment
+            LET $user = (SELECT VALUE id FROM ONLY type::table($user_table) WHERE user_id = $user_id LIMIT 1);
+            LET $comment = (SELECT VALUE id FROM ONLY type::table($comment_table) WHERE id = type::thing($comment_id) LIMIT 1);
 
             -- Relate the reaction to the user
-            RELATE $user->has_reaction->$reaction_id;
-
-            -- Relate the reaction to the comment
-            RELATE $comment->has_reaction->$reaction_id;
+            LET $reaction = (RELATE $user->reaction->$comment CONTENT $reaction_input RETURN AFTER);
 
             RETURN $reaction;
             COMMIT TRANSACTION;
@@ -698,11 +691,15 @@ impl Mutation {
         .bind(("comment_table", "comment"))
         .bind(("comment_id", format!("comment:{}", comment_id)))
         .await
-        .map_err(|e| Error::new(e.to_string()))?;
+        .map_err(|e| {
+            tracing::debug!("DB Query Error: {}", e);
+            Error::new("Internal Server Error")
+        })?;
 
-        let response: Vec<shared::Reaction> = database_transaction
-            .take(0)
-            .map_err(|e| Error::new(e.to_string()))?;
+        let response: Vec<shared::Reaction> = database_transaction.take(0).map_err(|_e| {
+            tracing::debug!("database_transaction: {:?}", database_transaction);
+            Error::new("Internal Server Error")
+        })?;
 
         Ok(response)
     }
@@ -712,18 +709,21 @@ impl Mutation {
         &self,
         ctx: &Context<'_>,
         message: shared::Message,
-    ) -> async_graphql::Result<Vec<shared::Message>> {
+    ) -> async_graphql::Result<shared::Message> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .unwrap();
 
-        let message: Option<Vec<shared::Message>> = db
-            .create("message")
-            .content(message)
-            .await
-            .map_err(|e| Error::new(e.to_string()))?;
+        let message: Option<shared::Message> =
+            db.create("message").content(message).await.map_err(|e| {
+                tracing::debug!("DB Query Error: {}", e);
+                Error::new("Internal Server Error")
+            })?;
 
-        Ok(message.unwrap_or_default())
+        match message {
+            Some(message) => Ok(message),
+            None => Err(Error::new("Internal Server Error")),
+        }
     }
 
     /// Relate a skill to a portfolio item
@@ -782,7 +782,7 @@ impl Mutation {
         ctx: &Context<'_>,
         blog_post: blog::BlogPostUpdate,
         blog_post_id: String,
-    ) -> async_graphql::Result<blog::BlogPost> {
+    ) -> async_graphql::Result<blog::BlogPostUpdateResponse> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .unwrap();
@@ -790,11 +790,14 @@ impl Mutation {
 
         let _auth_res_from_acl = check_auth_from_acl(headers).await?;
 
-        let response: Option<BlogPost> = db
-            .update(("blog_post", blog_post_id.clone()))
+        let response: Option<blog::BlogPostUpdateResponse> = db
+            .update(("blog_post", blog_post_id))
             .merge(blog_post)
             .await
-            .map_err(|e| Error::new(e.to_string()))?;
+            .map_err(|e| {
+                tracing::debug!("DB Query Error: {}", e);
+                Error::new("Internal Server Error")
+            })?;
 
         match response {
             Some(blog_post) => Ok(blog_post),
