@@ -4,7 +4,7 @@ use async_graphql::{Context, Error, Object};
 use axum::Extension;
 // use gql_client::Client as GQLClient;
 
-use hyper::HeaderMap;
+use hyper::{HeaderMap, StatusCode};
 use lib::utils::models::{ForeignKey, User};
 use lib::{
     integration::foreign_key::add_foreign_key_if_not_exists,
@@ -47,7 +47,12 @@ impl Mutation {
             .await;
 
         if id_added.is_none() {
-            return Err(ExtendedError::new("Failed to add user_id", Some(500.to_string())).build());
+            tracing::error!("Failed to add user_id");
+            return Err(ExtendedError::new(
+                "Something went wrong!",
+                Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+            )
+            .build());
         }
 
         tracing::debug!("professional_details: {:?}", professional_details);
@@ -108,8 +113,12 @@ impl Mutation {
         .await;
 
         if added_user_id.is_none() {
-            tracing::error!("added_user_id: {:?}", added_user_id);
-            return Err(ExtendedError::new("Invalid Input Data", Some(400.to_string())).build());
+            tracing::error!("Failed to add user_id");
+            return Err(ExtendedError::new(
+                "Invalid Input Data",
+                Some(StatusCode::BAD_REQUEST.as_u16()),
+            )
+            .build());
         }
 
         let mut database_transaction = db
@@ -167,7 +176,12 @@ impl Mutation {
             .await;
 
         if id_added.is_none() {
-            return Err(ExtendedError::new("Failed to add user_id", Some(500.to_string())).build());
+            tracing::error!("Failed to add user_id");
+            return Err(ExtendedError::new(
+                "Invalid Input Data",
+                Some(StatusCode::BAD_REQUEST.as_u16()),
+            )
+            .build());
         }
 
         let mut database_transaction = db
@@ -225,7 +239,12 @@ impl Mutation {
             .await;
 
         if id_added.is_none() {
-            return Err(ExtendedError::new("Failed to add user_id", Some(500.to_string())).build());
+            tracing::debug!("Failed to add user_id");
+            return Err(ExtendedError::new(
+                "Something went wrong",
+                Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+            )
+            .build());
         }
 
         let mut database_transaction = db
@@ -284,7 +303,12 @@ impl Mutation {
             .await;
 
         if id_added.is_none() {
-            return Err(ExtendedError::new("Failed to add user_id", Some(500.to_string())).build());
+            tracing::error!("Failed to add user_id");
+            return Err(ExtendedError::new(
+                "Something went wrong",
+                Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+            )
+            .build());
         }
 
         let mut database_transaction = db
@@ -343,7 +367,12 @@ impl Mutation {
             .await;
 
         if id_added.is_none() {
-            return Err(ExtendedError::new("Failed to add user_id", Some(500.to_string())).build());
+            tracing::error!("Failed to add user_id");
+            return Err(ExtendedError::new(
+                "Something went wrong",
+                Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+            )
+            .build());
         }
 
         let mut database_transaction = db
@@ -401,7 +430,12 @@ impl Mutation {
             .await;
 
         if id_added.is_none() {
-            return Err(ExtendedError::new("Failed to add user_id", Some(500.to_string())).build());
+            tracing::error!("Failed to add user_id");
+            return Err(ExtendedError::new(
+                "Something went wrong",
+                Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+            )
+            .build());
         }
 
         let mut database_transaction = db
@@ -461,7 +495,12 @@ impl Mutation {
             .await;
 
         if id_added.is_none() {
-            return Err(ExtendedError::new("Failed to add user_id", Some(500.to_string())).build());
+            tracing::error!("Failed to add user_id");
+            return Err(ExtendedError::new(
+                "Something went wrong",
+                Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+            )
+            .build());
         }
 
         let mut database_transaction = db
@@ -531,7 +570,12 @@ impl Mutation {
             .await;
 
         if id_added.is_none() {
-            return Err(ExtendedError::new("Failed to add user_id", Some(500.to_string())).build());
+            tracing::error!("Failed to add user_id");
+            return Err(ExtendedError::new(
+                "Something went wrong",
+                Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+            )
+            .build());
         }
 
         let mut database_transaction = db
@@ -601,7 +645,12 @@ impl Mutation {
             .await;
 
         if id_added.is_none() {
-            return Err(ExtendedError::new("Failed to add user_id", Some(500.to_string())).build());
+            tracing::error!("Failed to add user_id");
+            return Err(ExtendedError::new(
+                "Something went wrong",
+                Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+            )
+            .build());
         }
 
         let mut database_transaction = db
@@ -667,7 +716,12 @@ impl Mutation {
             .await;
 
         if id_added.is_none() {
-            return Err(ExtendedError::new("Failed to add user_id", Some(500.to_string())).build());
+            tracing::error!("Failed to add user_id");
+            return Err(ExtendedError::new(
+                "Something went wrong",
+                Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+            )
+            .build());
         }
 
         let mut database_transaction = db
@@ -801,7 +855,11 @@ impl Mutation {
 
         match response {
             Some(blog_post) => Ok(blog_post),
-            None => Err(ExtendedError::new("Blog post not found", Some(404.to_string())).build()),
+            None => Err(ExtendedError::new(
+                "Blog post not found",
+                Some(StatusCode::NOT_FOUND.as_u16()),
+            )
+            .build()),
         }
     }
 }

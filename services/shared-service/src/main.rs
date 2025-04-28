@@ -2,7 +2,11 @@ mod database;
 mod graphql;
 // mod middleware;
 
-use std::{env, sync::Arc};
+use std::{
+    env,
+    io::{Error, ErrorKind},
+    sync::Arc,
+};
 
 use async_graphql::{EmptySubscription, Schema};
 use async_graphql_axum::{GraphQLRequest, GraphQLResponse};
@@ -12,7 +16,7 @@ use hyper::{
     header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE},
     HeaderMap, Method,
 };
-use surrealdb::{engine::remote::ws::Client, Result, Surreal};
+use surrealdb::{engine::remote::ws::Client, Surreal};
 use tower_http::cors::CorsLayer;
 use tracing_subscriber::fmt::writer::MakeWriterExt;
 
@@ -52,8 +56,17 @@ async fn graphql_handler(
 }
 
 #[tokio::main]
-async fn main() -> Result<()> {
-    let db = Arc::new(database::connection::create_db_connection().await.unwrap());
+async fn main() -> Result<(), Error> {
+    let connection_pool = database::connection::create_db_connection()
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to connect to the database: {}", e);
+            Error::new(
+                ErrorKind::ConnectionRefused,
+                "Failed to connect to the database",
+            )
+        })?;
+    let db = Arc::new(connection_pool);
 
     // Import env vars
     let deployment_env = env::var("ENVIRONMENT").unwrap_or_else(|_| "prod".to_string()); // default to production because it's the most secure
@@ -106,10 +119,23 @@ async fn main() -> Result<()> {
                 .allow_methods(vec![Method::GET, Method::POST]),
         );
 
-    let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", shared_service_http_port))
-        .await
-        .unwrap();
-    serve(listener, app).await.unwrap();
+    match tokio::net::TcpListener::bind(format!("0.0.0.0:{}", shared_service_http_port)).await {
+        Ok(http_listener) => {
+            let _http_server = serve(http_listener, app)
+                .await
+                .map_err(|e| {
+                    tracing::error!("Failed to create HTTP server: {}", e);
+                })
+                .ok();
+        }
+        Err(e) => {
+            tracing::error!("Failed to create TCP listener: {}", e);
+            return Err(Error::new(
+                ErrorKind::ConnectionAborted,
+                "Failed to create TCP listener",
+            ));
+        }
+    };
 
     Ok(())
 }
