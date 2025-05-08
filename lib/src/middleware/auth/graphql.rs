@@ -38,7 +38,7 @@ pub async fn check_auth_from_acl(headers: &HeaderMap) -> Result<AuthStatus, Erro
         Error::new(ErrorKind::Other, "Failed to connect to ACL service")
     })?;
 
-    let response = acl_grpc_client.check_auth(request).await;
+    let response = acl_grpc_client.confirm_authentication(request).await;
 
     match response {
         Ok(response) => {
