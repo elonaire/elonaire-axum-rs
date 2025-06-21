@@ -20,7 +20,7 @@ async-trait = "0.1.87"
 lib = { path = "../../lib" }
 reqwest = { version = "0.12.12", features = ["json"] }
 # gql_client = "1.0.7"
-markdown = "1.0.0-alpha.23"
+markdown = "1.0.0"
 tracing-subscriber = "0.3.19"
 tracing = "0.1.41"
 tracing-appender = "0.2.3"
