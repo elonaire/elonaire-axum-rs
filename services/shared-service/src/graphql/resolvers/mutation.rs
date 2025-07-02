@@ -74,13 +74,19 @@ impl Mutation {
         .await
         .map_err(|e| {
             tracing::debug!("DB Query Failed: {}", e);
-            Error::new("Internal Server Error.")
+            // Error::new("Internal Server Error.")
+            ExtendedError::new(
+                "Failed",
+                Some(StatusCode::BAD_REQUEST.as_u16()),
+            )
+            .build()
         })?;
 
         let response: Vec<UserProfessionalInfo> = database_transaction.take(0).map_err(|e| {
             tracing::debug!("Deserialization Failed: {}", e);
             tracing::debug!("database_transaction: {:?}", database_transaction);
-            Error::new("Internal Server Error.")
+            // Error::new("Internal Server Error.")
+            ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
         })?;
 
         Ok(response)
@@ -138,12 +144,18 @@ impl Mutation {
             .await
             .map_err(|e| {
                 tracing::debug!("DB Query Error: {}", e);
-                Error::new("Internal Server Error")
+
+                ExtendedError::new(
+                    "Failed",
+                    Some(StatusCode::BAD_REQUEST.as_u16()),
+                )
+                .build()
             })?;
 
         let response: Vec<user::UserService> = database_transaction.take(0).map_err(|_e| {
             tracing::debug!("database_transaction: {:?}", database_transaction);
-            Error::new("Internal Server Error")
+
+            ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
         })?;
 
         Ok(response)
@@ -201,12 +213,18 @@ impl Mutation {
             .await
             .map_err(|e| {
                 tracing::debug!("DB Query Error: {}", e);
-                Error::new("Internal Server Error")
+
+                ExtendedError::new(
+                    "Failed",
+                    Some(StatusCode::BAD_REQUEST.as_u16()),
+                )
+                .build()
             })?;
 
         let response: Vec<user::UserPortfolio> = database_transaction.take(0).map_err(|_e| {
             tracing::debug!("database_transaction: {:?}", database_transaction);
-            Error::new("Internal Server Error")
+
+            ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
         })?;
 
         Ok(response)
@@ -217,7 +235,7 @@ impl Mutation {
         &self,
         ctx: &Context<'_>,
         resume_item: user::UserResumeInput,
-    ) -> async_graphql::Result<Vec<user::UserResume>> {
+    ) -> async_graphql::Result<user::UserResumeOutput> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .unwrap();
@@ -264,15 +282,29 @@ impl Mutation {
             .await
             .map_err(|e| {
                 tracing::debug!("DB Query Error: {}", e);
-                Error::new("Internal Server Error")
+
+                ExtendedError::new(
+                    "Failed",
+                    Some(StatusCode::BAD_REQUEST.as_u16()),
+                )
+                .build()
             })?;
 
-        let response: Vec<user::UserResume> = database_transaction.take(0).map_err(|_e| {
-            tracing::debug!("database_transaction: {:?}", database_transaction);
-            Error::new("Internal Server Error")
-        })?;
+        let response: Option<user::UserResumeOutput> =
+            database_transaction.take(0).map_err(|_e| {
+                tracing::debug!("database_transaction: {:?}", database_transaction);
 
-        Ok(response)
+                ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
+            })?;
+
+        match response {
+            Some(resume_item) => Ok(resume_item),
+            None => {
+                Err(ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build())
+            }
+        }
+
+        // Ok(response)
     }
 
     /// Create a new user resume item achievement
@@ -328,13 +360,19 @@ impl Mutation {
         .await
         .map_err(|e| {
             tracing::debug!("DB Query Error: {}", e);
-            Error::new("Internal Server Error")
+
+            ExtendedError::new(
+                "Failed",
+                Some(StatusCode::BAD_REQUEST.as_u16()),
+            )
+            .build()
         })?;
 
         let response: Vec<user::ResumeAchievement> =
             database_transaction.take(0).map_err(|_e| {
                 tracing::debug!("database_transaction: {:?}", database_transaction);
-                Error::new("Internal Server Error")
+
+                ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
             })?;
 
         Ok(response)
@@ -392,12 +430,14 @@ impl Mutation {
             .await
             .map_err(|e| {
                 tracing::debug!("DB Query Error: {}", e);
-                Error::new("Internal Server Error")
+
+                ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
             })?;
 
         let response: Vec<user::UserSkill> = database_transaction.take(0).map_err(|_e| {
             tracing::debug!("database_transaction: {:?}", database_transaction);
-            Error::new("Internal Server Error")
+
+            ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
         })?;
 
         Ok(response)
@@ -460,7 +500,8 @@ impl Mutation {
 
         let response: Vec<blog::BlogPost> = database_transaction.take(0).map_err(|_e| {
             tracing::debug!("database_transaction: {:?}", database_transaction);
-            Error::new("Internal Server Error")
+
+            ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
         })?;
 
         Ok(response)
@@ -531,12 +572,18 @@ impl Mutation {
         .await
         .map_err(|e| {
             tracing::debug!("DB Query Error: {}", e);
-            Error::new("Internal Server Error")
+
+            ExtendedError::new(
+                "Failed",
+                Some(StatusCode::BAD_REQUEST.as_u16()),
+            )
+            .build()
         })?;
 
         let response: Vec<blog::BlogComment> = database_transaction.take(0).map_err(|_e| {
             tracing::debug!("database_transaction: {:?}", database_transaction);
-            Error::new("Internal Server Error")
+
+            ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
         })?;
 
         Ok(response)
@@ -606,12 +653,18 @@ impl Mutation {
         .await
         .map_err(|e| {
             tracing::debug!("DB Query Error: {}", e);
-            Error::new("Internal Server Error")
+
+            ExtendedError::new(
+                "Failed",
+                Some(StatusCode::BAD_REQUEST.as_u16()),
+            )
+            .build()
         })?;
 
         let response: Vec<blog::BlogComment> = database_transaction.take(0).map_err(|_e| {
             tracing::debug!("database_transaction: {:?}", database_transaction);
-            Error::new("Internal Server Error")
+
+            ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
         })?;
 
         Ok(response)
@@ -677,12 +730,18 @@ impl Mutation {
         .await
         .map_err(|e| {
             tracing::debug!("DB Query Error: {}", e);
-            Error::new("Internal Server Error")
+
+            ExtendedError::new(
+                "Failed",
+                Some(StatusCode::BAD_REQUEST.as_u16()),
+            )
+            .build()
         })?;
 
         let response: Vec<shared::Reaction> = database_transaction.take(0).map_err(|_e| {
             tracing::debug!("database_transaction: {:?}", database_transaction);
-            Error::new("Internal Server Error")
+
+            ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
         })?;
 
         Ok(response)
@@ -747,12 +806,18 @@ impl Mutation {
         .await
         .map_err(|e| {
             tracing::debug!("DB Query Error: {}", e);
-            Error::new("Internal Server Error")
+
+            ExtendedError::new(
+                "Failed",
+                Some(StatusCode::BAD_REQUEST.as_u16()),
+            )
+            .build()
         })?;
 
         let response: Vec<shared::Reaction> = database_transaction.take(0).map_err(|_e| {
             tracing::debug!("database_transaction: {:?}", database_transaction);
-            Error::new("Internal Server Error")
+
+            ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
         })?;
 
         Ok(response)
@@ -771,12 +836,15 @@ impl Mutation {
         let message: Option<shared::Message> =
             db.create("message").content(message).await.map_err(|e| {
                 tracing::debug!("DB Query Error: {}", e);
-                Error::new("Internal Server Error")
+
+                ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
             })?;
 
         match message {
             Some(message) => Ok(message),
-            None => Err(Error::new("Internal Server Error")),
+            None => {
+                Err(ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build())
+            }
         }
     }
 
@@ -820,12 +888,13 @@ impl Mutation {
             .await
             .map_err(|e| {
                 tracing::debug!("DB Query Error: {}", e);
-                Error::new("Internal Server Error")
+
+                ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
             })?;
 
         let response: Vec<user::UserSkill> = database_transaction.take(0).map_err(|_e| {
             tracing::debug!("database_transaction: {:?}", database_transaction);
-            Error::new("Internal Server Error")
+            ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
         })?;
 
         Ok(response)
@@ -850,7 +919,8 @@ impl Mutation {
             .await
             .map_err(|e| {
                 tracing::debug!("DB Query Error: {}", e);
-                Error::new("Internal Server Error")
+
+                ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
             })?;
 
         match response {

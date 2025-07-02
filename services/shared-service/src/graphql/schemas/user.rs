@@ -118,6 +118,26 @@ pub struct UserResumeInput {
 
 #[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
 #[graphql(complex)]
+pub struct UserResumeOutput {
+    #[graphql(skip)]
+    pub id: Option<Thing>,
+    pub title: String,
+    pub more_info: Option<String>,
+    pub start_date: String,
+    pub end_date: Option<String>,
+    pub link: Option<String>,
+    pub section: UserResumeSection,
+}
+
+#[ComplexObject]
+impl UserResumeOutput {
+    async fn id(&self) -> String {
+        self.id.as_ref().map(|t| &t.id).expect("id").to_raw()
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
+#[graphql(complex)]
 pub struct UserResume {
     #[graphql(skip)]
     pub id: Option<Thing>,
