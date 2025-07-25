@@ -29,8 +29,22 @@ impl Mutation {
     ) -> async_graphql::Result<Vec<UserProfessionalInfo>> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
-            .unwrap();
-        let headers = ctx.data::<HeaderMap>().unwrap();
+            .map_err(|e| {
+                tracing::error!("Error extracting Surreal Client: {:?}", e);
+                ExtendedError::new(
+                    "Server Error",
+                    Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+                )
+                .build()
+            })?;
+        let headers = ctx.data::<HeaderMap>().map_err(|e| {
+            tracing::error!("Error HeaderMap: {:?}", e);
+            ExtendedError::new(
+                "Server Error",
+                Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+            )
+            .build()
+        })?;
 
         let auth_res_from_acl = check_auth_from_acl(headers).await?;
 
@@ -74,13 +88,19 @@ impl Mutation {
         .await
         .map_err(|e| {
             tracing::debug!("DB Query Failed: {}", e);
-            Error::new("Internal Server Error.")
+            // Error::new("Internal Server Error.")
+            ExtendedError::new(
+                "Failed",
+                Some(StatusCode::BAD_REQUEST.as_u16()),
+            )
+            .build()
         })?;
 
         let response: Vec<UserProfessionalInfo> = database_transaction.take(0).map_err(|e| {
             tracing::debug!("Deserialization Failed: {}", e);
             tracing::debug!("database_transaction: {:?}", database_transaction);
-            Error::new("Internal Server Error.")
+            // Error::new("Internal Server Error.")
+            ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
         })?;
 
         Ok(response)
@@ -94,9 +114,23 @@ impl Mutation {
     ) -> async_graphql::Result<Vec<user::UserService>> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
-            .unwrap();
+            .map_err(|e| {
+                tracing::error!("Error Surreal Client: {:?}", e);
+                ExtendedError::new(
+                    "Server Error",
+                    Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+                )
+                .build()
+            })?;
 
-        let headers = ctx.data::<HeaderMap>().unwrap();
+        let headers = ctx.data::<HeaderMap>().map_err(|e| {
+            tracing::error!("Error HeaderMap: {:?}", e);
+            ExtendedError::new(
+                "Server Error",
+                Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+            )
+            .build()
+        })?;
 
         let auth_res_from_acl = check_auth_from_acl(headers).await?;
 
@@ -138,12 +172,18 @@ impl Mutation {
             .await
             .map_err(|e| {
                 tracing::debug!("DB Query Error: {}", e);
-                Error::new("Internal Server Error")
+
+                ExtendedError::new(
+                    "Failed",
+                    Some(StatusCode::BAD_REQUEST.as_u16()),
+                )
+                .build()
             })?;
 
         let response: Vec<user::UserService> = database_transaction.take(0).map_err(|_e| {
             tracing::debug!("database_transaction: {:?}", database_transaction);
-            Error::new("Internal Server Error")
+
+            ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
         })?;
 
         Ok(response)
@@ -157,9 +197,23 @@ impl Mutation {
     ) -> async_graphql::Result<Vec<user::UserPortfolio>> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
-            .unwrap();
+            .map_err(|e| {
+                tracing::error!("Error Surreal Client: {:?}", e);
+                ExtendedError::new(
+                    "Server Error",
+                    Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+                )
+                .build()
+            })?;
 
-        let headers = ctx.data::<HeaderMap>().unwrap();
+        let headers = ctx.data::<HeaderMap>().map_err(|e| {
+            tracing::error!("Error HeaderMap: {:?}", e);
+            ExtendedError::new(
+                "Server Error",
+                Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+            )
+            .build()
+        })?;
 
         let auth_res_from_acl = check_auth_from_acl(headers).await?;
 
@@ -201,12 +255,18 @@ impl Mutation {
             .await
             .map_err(|e| {
                 tracing::debug!("DB Query Error: {}", e);
-                Error::new("Internal Server Error")
+
+                ExtendedError::new(
+                    "Failed",
+                    Some(StatusCode::BAD_REQUEST.as_u16()),
+                )
+                .build()
             })?;
 
         let response: Vec<user::UserPortfolio> = database_transaction.take(0).map_err(|_e| {
             tracing::debug!("database_transaction: {:?}", database_transaction);
-            Error::new("Internal Server Error")
+
+            ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
         })?;
 
         Ok(response)
@@ -217,12 +277,26 @@ impl Mutation {
         &self,
         ctx: &Context<'_>,
         resume_item: user::UserResumeInput,
-    ) -> async_graphql::Result<Vec<user::UserResume>> {
+    ) -> async_graphql::Result<user::UserResumeOutput> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
-            .unwrap();
+            .map_err(|e| {
+                tracing::error!("Error Surreal Client: {:?}", e);
+                ExtendedError::new(
+                    "Server Error",
+                    Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+                )
+                .build()
+            })?;
 
-        let headers = ctx.data::<HeaderMap>().unwrap();
+        let headers = ctx.data::<HeaderMap>().map_err(|e| {
+            tracing::error!("Error HeaderMap: {:?}", e);
+            ExtendedError::new(
+                "Server Error",
+                Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+            )
+            .build()
+        })?;
 
         let auth_res_from_acl = check_auth_from_acl(headers).await?;
 
@@ -264,15 +338,29 @@ impl Mutation {
             .await
             .map_err(|e| {
                 tracing::debug!("DB Query Error: {}", e);
-                Error::new("Internal Server Error")
+
+                ExtendedError::new(
+                    "Failed",
+                    Some(StatusCode::BAD_REQUEST.as_u16()),
+                )
+                .build()
             })?;
 
-        let response: Vec<user::UserResume> = database_transaction.take(0).map_err(|_e| {
-            tracing::debug!("database_transaction: {:?}", database_transaction);
-            Error::new("Internal Server Error")
-        })?;
+        let response: Option<user::UserResumeOutput> =
+            database_transaction.take(0).map_err(|_e| {
+                tracing::debug!("database_transaction: {:?}", database_transaction);
 
-        Ok(response)
+                ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
+            })?;
+
+        match response {
+            Some(resume_item) => Ok(resume_item),
+            None => {
+                Err(ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build())
+            }
+        }
+
+        // Ok(response)
     }
 
     /// Create a new user resume item achievement
@@ -284,9 +372,23 @@ impl Mutation {
     ) -> async_graphql::Result<Vec<user::ResumeAchievement>> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
-            .unwrap();
+            .map_err(|e| {
+                tracing::error!("Error Surreal Client: {:?}", e);
+                ExtendedError::new(
+                    "Server Error",
+                    Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+                )
+                .build()
+            })?;
 
-        let headers = ctx.data::<HeaderMap>().unwrap();
+        let headers = ctx.data::<HeaderMap>().map_err(|e| {
+            tracing::error!("Error HeaderMap: {:?}", e);
+            ExtendedError::new(
+                "Server Error",
+                Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+            )
+            .build()
+        })?;
 
         let auth_res_from_acl = check_auth_from_acl(headers).await?;
 
@@ -328,13 +430,19 @@ impl Mutation {
         .await
         .map_err(|e| {
             tracing::debug!("DB Query Error: {}", e);
-            Error::new("Internal Server Error")
+
+            ExtendedError::new(
+                "Failed",
+                Some(StatusCode::BAD_REQUEST.as_u16()),
+            )
+            .build()
         })?;
 
         let response: Vec<user::ResumeAchievement> =
             database_transaction.take(0).map_err(|_e| {
                 tracing::debug!("database_transaction: {:?}", database_transaction);
-                Error::new("Internal Server Error")
+
+                ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
             })?;
 
         Ok(response)
@@ -348,9 +456,23 @@ impl Mutation {
     ) -> async_graphql::Result<Vec<user::UserSkill>> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
-            .unwrap();
+            .map_err(|e| {
+                tracing::error!("Error Surreal Client: {:?}", e);
+                ExtendedError::new(
+                    "Server Error",
+                    Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+                )
+                .build()
+            })?;
 
-        let headers = ctx.data::<HeaderMap>().unwrap();
+        let headers = ctx.data::<HeaderMap>().map_err(|e| {
+            tracing::error!("Error HeaderMap: {:?}", e);
+            ExtendedError::new(
+                "Server Error",
+                Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+            )
+            .build()
+        })?;
 
         let auth_res_from_acl = check_auth_from_acl(headers).await?;
 
@@ -392,12 +514,14 @@ impl Mutation {
             .await
             .map_err(|e| {
                 tracing::debug!("DB Query Error: {}", e);
-                Error::new("Internal Server Error")
+
+                ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
             })?;
 
         let response: Vec<user::UserSkill> = database_transaction.take(0).map_err(|_e| {
             tracing::debug!("database_transaction: {:?}", database_transaction);
-            Error::new("Internal Server Error")
+
+            ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
         })?;
 
         Ok(response)
@@ -411,9 +535,23 @@ impl Mutation {
     ) -> async_graphql::Result<Vec<blog::BlogPost>> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
-            .unwrap();
+            .map_err(|e| {
+                tracing::error!("Error Surreal Client: {:?}", e);
+                ExtendedError::new(
+                    "Server Error",
+                    Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+                )
+                .build()
+            })?;
 
-        let headers = ctx.data::<HeaderMap>().unwrap();
+        let headers = ctx.data::<HeaderMap>().map_err(|e| {
+            tracing::error!("Error HeaderMap: {:?}", e);
+            ExtendedError::new(
+                "Server Error",
+                Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+            )
+            .build()
+        })?;
 
         let auth_res_from_acl = check_auth_from_acl(headers).await?;
 
@@ -460,7 +598,8 @@ impl Mutation {
 
         let response: Vec<blog::BlogPost> = database_transaction.take(0).map_err(|_e| {
             tracing::debug!("database_transaction: {:?}", database_transaction);
-            Error::new("Internal Server Error")
+
+            ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
         })?;
 
         Ok(response)
@@ -476,9 +615,23 @@ impl Mutation {
         // TODO: Might have to allow anonymous comments?
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
-            .unwrap();
+            .map_err(|e| {
+                tracing::error!("Error Surreal Client: {:?}", e);
+                ExtendedError::new(
+                    "Server Error",
+                    Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+                )
+                .build()
+            })?;
 
-        let headers = ctx.data::<HeaderMap>().unwrap();
+        let headers = ctx.data::<HeaderMap>().map_err(|e| {
+            tracing::error!("Error HeaderMap: {:?}", e);
+            ExtendedError::new(
+                "Server Error",
+                Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+            )
+            .build()
+        })?;
 
         let auth_res_from_acl = check_auth_from_acl(headers).await?;
 
@@ -531,12 +684,18 @@ impl Mutation {
         .await
         .map_err(|e| {
             tracing::debug!("DB Query Error: {}", e);
-            Error::new("Internal Server Error")
+
+            ExtendedError::new(
+                "Failed",
+                Some(StatusCode::BAD_REQUEST.as_u16()),
+            )
+            .build()
         })?;
 
         let response: Vec<blog::BlogComment> = database_transaction.take(0).map_err(|_e| {
             tracing::debug!("database_transaction: {:?}", database_transaction);
-            Error::new("Internal Server Error")
+
+            ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
         })?;
 
         Ok(response)
@@ -551,9 +710,23 @@ impl Mutation {
     ) -> async_graphql::Result<Vec<blog::BlogComment>> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
-            .unwrap();
+            .map_err(|e| {
+                tracing::error!("Error Surreal Client: {:?}", e);
+                ExtendedError::new(
+                    "Server Error",
+                    Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+                )
+                .build()
+            })?;
 
-        let headers = ctx.data::<HeaderMap>().unwrap();
+        let headers = ctx.data::<HeaderMap>().map_err(|e| {
+            tracing::error!("Error HeaderMap: {:?}", e);
+            ExtendedError::new(
+                "Server Error",
+                Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+            )
+            .build()
+        })?;
 
         let auth_res_from_acl = check_auth_from_acl(headers).await?;
 
@@ -606,12 +779,18 @@ impl Mutation {
         .await
         .map_err(|e| {
             tracing::debug!("DB Query Error: {}", e);
-            Error::new("Internal Server Error")
+
+            ExtendedError::new(
+                "Failed",
+                Some(StatusCode::BAD_REQUEST.as_u16()),
+            )
+            .build()
         })?;
 
         let response: Vec<blog::BlogComment> = database_transaction.take(0).map_err(|_e| {
             tracing::debug!("database_transaction: {:?}", database_transaction);
-            Error::new("Internal Server Error")
+
+            ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
         })?;
 
         Ok(response)
@@ -626,9 +805,23 @@ impl Mutation {
     ) -> async_graphql::Result<Vec<shared::Reaction>> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
-            .unwrap();
+            .map_err(|e| {
+                tracing::error!("Error Surreal Client: {:?}", e);
+                ExtendedError::new(
+                    "Server Error",
+                    Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+                )
+                .build()
+            })?;
 
-        let headers = ctx.data::<HeaderMap>().unwrap();
+        let headers = ctx.data::<HeaderMap>().map_err(|e| {
+            tracing::error!("Error HeaderMap: {:?}", e);
+            ExtendedError::new(
+                "Server Error",
+                Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+            )
+            .build()
+        })?;
 
         let auth_res_from_acl = check_auth_from_acl(headers).await?;
 
@@ -677,12 +870,18 @@ impl Mutation {
         .await
         .map_err(|e| {
             tracing::debug!("DB Query Error: {}", e);
-            Error::new("Internal Server Error")
+
+            ExtendedError::new(
+                "Failed",
+                Some(StatusCode::BAD_REQUEST.as_u16()),
+            )
+            .build()
         })?;
 
         let response: Vec<shared::Reaction> = database_transaction.take(0).map_err(|_e| {
             tracing::debug!("database_transaction: {:?}", database_transaction);
-            Error::new("Internal Server Error")
+
+            ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
         })?;
 
         Ok(response)
@@ -697,9 +896,23 @@ impl Mutation {
     ) -> async_graphql::Result<Vec<shared::Reaction>> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
-            .unwrap();
+            .map_err(|e| {
+                tracing::error!("Error Surreal Client: {:?}", e);
+                ExtendedError::new(
+                    "Server Error",
+                    Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+                )
+                .build()
+            })?;
 
-        let headers = ctx.data::<HeaderMap>().unwrap();
+        let headers = ctx.data::<HeaderMap>().map_err(|e| {
+            tracing::error!("Error HeaderMap: {:?}", e);
+            ExtendedError::new(
+                "Server Error",
+                Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+            )
+            .build()
+        })?;
 
         let auth_res_from_acl = check_auth_from_acl(headers).await?;
 
@@ -747,12 +960,18 @@ impl Mutation {
         .await
         .map_err(|e| {
             tracing::debug!("DB Query Error: {}", e);
-            Error::new("Internal Server Error")
+
+            ExtendedError::new(
+                "Failed",
+                Some(StatusCode::BAD_REQUEST.as_u16()),
+            )
+            .build()
         })?;
 
         let response: Vec<shared::Reaction> = database_transaction.take(0).map_err(|_e| {
             tracing::debug!("database_transaction: {:?}", database_transaction);
-            Error::new("Internal Server Error")
+
+            ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
         })?;
 
         Ok(response)
@@ -766,17 +985,27 @@ impl Mutation {
     ) -> async_graphql::Result<shared::Message> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
-            .unwrap();
+            .map_err(|e| {
+                tracing::error!("Error Surreal Client: {:?}", e);
+                ExtendedError::new(
+                    "Server Error",
+                    Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+                )
+                .build()
+            })?;
 
         let message: Option<shared::Message> =
             db.create("message").content(message).await.map_err(|e| {
                 tracing::debug!("DB Query Error: {}", e);
-                Error::new("Internal Server Error")
+
+                ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
             })?;
 
         match message {
             Some(message) => Ok(message),
-            None => Err(Error::new("Internal Server Error")),
+            None => {
+                Err(ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build())
+            }
         }
     }
 
@@ -789,8 +1018,22 @@ impl Mutation {
     ) -> async_graphql::Result<Vec<user::UserSkill>> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
-            .unwrap();
-        let headers = ctx.data::<HeaderMap>().unwrap();
+            .map_err(|e| {
+                tracing::error!("Error Surreal Client: {:?}", e);
+                ExtendedError::new(
+                    "Server Error",
+                    Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+                )
+                .build()
+            })?;
+        let headers = ctx.data::<HeaderMap>().map_err(|e| {
+            tracing::error!("Error HeaderMap: {:?}", e);
+            ExtendedError::new(
+                "Server Error",
+                Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+            )
+            .build()
+        })?;
 
         let _auth_res_from_acl = check_auth_from_acl(headers).await?;
 
@@ -820,12 +1063,13 @@ impl Mutation {
             .await
             .map_err(|e| {
                 tracing::debug!("DB Query Error: {}", e);
-                Error::new("Internal Server Error")
+
+                ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
             })?;
 
         let response: Vec<user::UserSkill> = database_transaction.take(0).map_err(|_e| {
             tracing::debug!("database_transaction: {:?}", database_transaction);
-            Error::new("Internal Server Error")
+            ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
         })?;
 
         Ok(response)
@@ -839,8 +1083,22 @@ impl Mutation {
     ) -> async_graphql::Result<blog::BlogPostUpdateResponse> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
-            .unwrap();
-        let headers = ctx.data::<HeaderMap>().unwrap();
+            .map_err(|e| {
+                tracing::error!("Error Surreal Client: {:?}", e);
+                ExtendedError::new(
+                    "Server Error",
+                    Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+                )
+                .build()
+            })?;
+        let headers = ctx.data::<HeaderMap>().map_err(|e| {
+            tracing::error!("Error HeaderMap: {:?}", e);
+            ExtendedError::new(
+                "Server Error",
+                Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+            )
+            .build()
+        })?;
 
         let _auth_res_from_acl = check_auth_from_acl(headers).await?;
 
@@ -850,7 +1108,8 @@ impl Mutation {
             .await
             .map_err(|e| {
                 tracing::debug!("DB Query Error: {}", e);
-                Error::new("Internal Server Error")
+
+                ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
             })?;
 
         match response {

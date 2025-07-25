@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use async_graphql::{Context, Error, Object};
 use axum::Extension;
-use hyper::HeaderMap;
+use hyper::{HeaderMap, StatusCode};
 use surrealdb::{engine::remote::ws::Client as SurrealClient, Surreal};
 
 use crate::graphql::schemas::{
@@ -11,7 +11,7 @@ use crate::graphql::schemas::{
     user::{self, UserResources},
 };
 
-use lib::middleware::auth::graphql::check_auth_from_acl;
+use lib::{middleware::auth::graphql::check_auth_from_acl, utils::custom_error::ExtendedError};
 
 pub struct Query;
 
@@ -25,7 +25,14 @@ impl Query {
     ) -> async_graphql::Result<Vec<blog::BlogPost>> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
-            .unwrap();
+            .map_err(|e| {
+                tracing::error!("Error Surreal Client: {:?}", e);
+                ExtendedError::new(
+                    "Server Error",
+                    Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+                )
+                .build()
+            })?;
 
         let mut query_result = db
             // .select("blog_post")
@@ -54,7 +61,14 @@ impl Query {
     ) -> async_graphql::Result<UserResources> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
-            .unwrap();
+            .map_err(|e| {
+                tracing::error!("Error Surreal Client: {:?}", e);
+                ExtendedError::new(
+                    "Server Error",
+                    Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+                )
+                .build()
+            })?;
 
         let mut user_query_result = db
             .query("SELECT * FROM user_id WHERE user_id = $user_id LIMIT 1")
@@ -135,9 +149,23 @@ impl Query {
     ) -> async_graphql::Result<Vec<shared::Message>> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
-            .unwrap();
+            .map_err(|e| {
+                tracing::error!("Error Surreal Client: {:?}", e);
+                ExtendedError::new(
+                    "Server Error",
+                    Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+                )
+                .build()
+            })?;
 
-        let headers = ctx.data::<HeaderMap>().unwrap();
+        let headers = ctx.data::<HeaderMap>().map_err(|e| {
+            tracing::error!("Error HeaderMap: {:?}", e);
+            ExtendedError::new(
+                "Server Error",
+                Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+            )
+            .build()
+        })?;
 
         let _auth_res_from_acl = check_auth_from_acl(headers).await?;
 
