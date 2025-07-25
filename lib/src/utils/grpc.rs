@@ -63,7 +63,7 @@ pub async fn create_grpc_client<'a, R, T: GrpcClient>(
     is_authenticated: bool,
     auth_metadata: Option<AuthMetaData<'_, R>>,
 ) -> Result<T, StdError> {
-    if is_authenticated {
+    if is_authenticated && auth_metadata.is_some() {
         add_auth_headers_to_request::<R>(auth_metadata.unwrap()).await?;
     }
     T::connect(endpoint)
@@ -74,11 +74,21 @@ pub async fn create_grpc_client<'a, R, T: GrpcClient>(
 async fn add_auth_headers_to_request<R>(
     mut auth_metadata: AuthMetaData<'_, R>,
 ) -> Result<(), StdError> {
+    if auth_metadata.auth_header.is_none()
+        || auth_metadata.cookie_header.is_none()
+        || auth_metadata.constructed_grpc_request.is_none()
+    {
+        return Err(StdError::new(ErrorKind::InvalidData, "Invalid request"));
+    }
+
     let token: MetadataValue<_> = auth_metadata
         .auth_header
         .unwrap()
         .to_str()
-        .unwrap()
+        .map_err(|e| {
+            tracing::error!("Failed to convert auth header to str: {}", e);
+            StdError::new(ErrorKind::InvalidData, "Invalid header")
+        })?
         .parse()
         .map_err(|e| {
             tracing::error!("Failed to parse auth header: {}", e);
@@ -96,7 +106,10 @@ async fn add_auth_headers_to_request<R>(
         .cookie_header
         .unwrap()
         .to_str()
-        .unwrap()
+        .map_err(|e| {
+            tracing::error!("Failed to convert auth header to str: {}", e);
+            StdError::new(ErrorKind::InvalidData, "Invalid header")
+        })?
         .parse()
         .map_err(|e| {
             tracing::error!("Failed to parse cookie header: {}", e);

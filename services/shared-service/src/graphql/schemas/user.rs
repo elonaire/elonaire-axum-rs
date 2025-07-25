@@ -70,34 +70,30 @@ impl UserPortfolio {
         self.id.as_ref().map(|t| &t.id).expect("id").to_raw()
     }
 
-    async fn years_of_experience(&self) -> u32 {
+    async fn years_of_experience(&self) -> Option<u32> {
         // calculate years of experience from &self.start_date
-        let parsed_start_date =
-            DateTime::parse_from_rfc3339(&self.start_date).expect("Invalid date format");
+        let parsed_start_date = DateTime::parse_from_rfc3339(&self.start_date).ok()?;
         let start_date_ymd = NaiveDate::from_ymd_opt(
             parsed_start_date.year(),
             parsed_start_date.month(),
             parsed_start_date.day(),
-        )
-        .unwrap();
+        )?;
 
         match &self.end_date {
             Some(end_date) => {
-                let parsed_end_date =
-                    DateTime::parse_from_rfc3339(end_date).expect("Invalid date format");
+                let parsed_end_date = DateTime::parse_from_rfc3339(end_date).ok()?;
 
                 let end_date_ymd = NaiveDate::from_ymd_opt(
                     parsed_end_date.year(),
                     parsed_end_date.month(),
                     parsed_end_date.day(),
-                )
-                .unwrap();
+                )?;
 
-                end_date_ymd.years_since(start_date_ymd).unwrap()
+                Some(end_date_ymd.years_since(start_date_ymd)?)
             }
             None => {
                 let today = Utc::now().date_naive();
-                today.years_since(start_date_ymd).unwrap()
+                Some(today.years_since(start_date_ymd)?)
             }
         }
     }
@@ -156,34 +152,30 @@ impl UserResume {
         self.id.as_ref().map(|t| &t.id).expect("id").to_raw()
     }
 
-    async fn years_of_experience(&self) -> u32 {
+    async fn years_of_experience(&self) -> Option<u32> {
         // TODO: factor in months, currently only years e.g. 1 year 6 months
         // calculate years of experience from &self.start_date
-        let parsed_start_date =
-            DateTime::parse_from_rfc3339(&self.start_date).expect("Invalid date format");
+        let parsed_start_date = DateTime::parse_from_rfc3339(&self.start_date).ok()?;
         let start_date_ymd = NaiveDate::from_ymd_opt(
             parsed_start_date.year(),
             parsed_start_date.month(),
             parsed_start_date.day(),
-        )
-        .unwrap();
+        )?;
 
         match &self.end_date {
             Some(end_date) => {
-                let parsed_end_date =
-                    DateTime::parse_from_rfc3339(end_date).expect("Invalid date format");
+                let parsed_end_date = DateTime::parse_from_rfc3339(end_date).ok()?;
                 let end_date_ymd = NaiveDate::from_ymd_opt(
                     parsed_end_date.year(),
                     parsed_end_date.month(),
                     parsed_end_date.day(),
-                )
-                .unwrap();
+                )?;
 
-                end_date_ymd.years_since(start_date_ymd).unwrap()
+                Some(end_date_ymd.years_since(start_date_ymd)?)
             }
             None => {
                 let today = Utc::now().date_naive();
-                today.years_since(start_date_ymd).unwrap()
+                Some(today.years_since(start_date_ymd)?)
             }
         }
     }
@@ -307,19 +299,17 @@ impl UserProfessionalInfo {
         self.id.as_ref().map(|t| &t.id).expect("id").to_raw()
     }
 
-    async fn years_of_experience(&self) -> u32 {
+    async fn years_of_experience(&self) -> Option<u32> {
         // calculate years of experience from &self.start_date
-        let parsed_start_date =
-            DateTime::parse_from_rfc3339(&self.start_date).expect("Invalid date format");
+        let parsed_start_date = DateTime::parse_from_rfc3339(&self.start_date).ok()?;
         let start_date_ymd = NaiveDate::from_ymd_opt(
             parsed_start_date.year(),
             parsed_start_date.month(),
             parsed_start_date.day(),
-        )
-        .unwrap();
+        )?;
 
         let today = Utc::now().date_naive();
-        today.years_since(start_date_ymd).unwrap()
+        Some(today.years_since(start_date_ymd)?)
     }
 }
 

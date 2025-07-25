@@ -10,7 +10,10 @@ use hyper::{
     header::{AUTHORIZATION, COOKIE},
     HeaderMap,
 };
-use std::io::{Error, ErrorKind};
+use std::{
+    env,
+    io::{Error, ErrorKind},
+};
 use tonic::transport::Channel;
 
 /// False middleware for checking authentication from ACL service for GraphQL requests.
@@ -27,8 +30,16 @@ pub async fn check_auth_from_acl(headers: &HeaderMap) -> Result<AuthStatus, Erro
         constructed_grpc_request: Some(&mut request),
     };
 
+    let acl_service_grpc = env::var("OAUTH_SERVICE_GRPC").map_err(|e| {
+        tracing::error!(
+            "Missing the OAUTH_SERVICE_GRPC environment variable.: {}",
+            e
+        );
+        Error::new(ErrorKind::Other, "Server Error")
+    })?;
+
     let mut acl_grpc_client = create_grpc_client::<Empty, AclClient<Channel>>(
-        "http://[::1]:50051",
+        &acl_service_grpc,
         true,
         Some(auth_metadata),
     )

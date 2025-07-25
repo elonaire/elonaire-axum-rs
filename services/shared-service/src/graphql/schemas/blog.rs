@@ -1,14 +1,19 @@
+use std::env;
+
 use async_graphql::{ComplexObject, Enum, Error, InputObject, SimpleObject};
 use hyper::{
     header::{AUTHORIZATION, COOKIE},
-    HeaderMap,
+    HeaderMap, StatusCode,
 };
 use lib::{
     integration::grpc::clients::{
         acl_service::{acl_client::AclClient, Empty},
         files_service::{files_service_client::FilesServiceClient, FileId},
     },
-    utils::grpc::{create_grpc_client, AuthMetaData},
+    utils::{
+        custom_error::ExtendedError,
+        grpc::{create_grpc_client, AuthMetaData},
+    },
 };
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -167,12 +172,25 @@ impl BlogPost {
     }
 
     // generate Blog static content from the corresponding markdown file in the content_file field
-    async fn content(&self) -> String {
+    async fn content(&self) -> Option<String> {
         // Internal sign in logic using gRPC
         let request = tonic::Request::new(Empty {});
 
+        let acl_service_grpc = env::var("OAUTH_SERVICE_GRPC");
+
+        if let Err(e) = &acl_service_grpc {
+            tracing::error!(
+                "Missing the OAUTH_SERVICE_GRPC environment variable.: {}",
+                e
+            );
+
+            return None;
+        }
+
+        let acl_service_grpc = acl_service_grpc.unwrap();
+
         if let Ok(mut acl_grpc_client) =
-            create_grpc_client::<Empty, AclClient<Channel>>("http://[::1]:50051", false, None)
+            create_grpc_client::<Empty, AclClient<Channel>>(&acl_service_grpc, false, None)
                 .await
                 .map_err(|e| {
                     tracing::error!("Failed to connect to ACL service: {}", e);
@@ -184,17 +202,14 @@ impl BlogPost {
                 let internal_jwt = auth_res.into_inner().token;
                 header_map.insert(
                     AUTHORIZATION,
-                    format!("Bearer {}", &internal_jwt)
-                        .as_str()
-                        .parse()
-                        .unwrap(),
+                    format!("Bearer {}", &internal_jwt).as_str().parse().ok()?,
                 );
                 header_map.insert(
                     COOKIE,
                     format!("oauth_client=;t={}", &internal_jwt)
                         .as_str()
                         .parse()
-                        .unwrap(),
+                        .ok()?,
                 );
 
                 let auth_header = header_map.get(AUTHORIZATION);
@@ -210,23 +225,44 @@ impl BlogPost {
                     constructed_grpc_request: Some(&mut request),
                 };
 
+                let files_service_grpc = env::var("FILES_SERVICE_GRPC");
+
+                if let Err(e) = &files_service_grpc {
+                    tracing::error!(
+                        "Missing the FILES_SERVICE_GRPC environment variable.: {}",
+                        e
+                    );
+
+                    return None;
+                }
+
+                let files_service_grpc = files_service_grpc.unwrap();
+
                 if let Ok(mut files_grpc_client) = create_grpc_client::<
                     FileId,
                     FilesServiceClient<Channel>,
                 >(
-                    "http://[::1]:50053", true, Some(auth_metadata)
+                    &files_service_grpc, true, Some(auth_metadata)
                 )
                 .await
                 .map_err(|e| {
                     tracing::error!("Failed to connect to Files service: {}", e);
-                    Error::new("Failed to connect to Files service".to_string())
+                    // Error::new("Failed to connect to Files service".to_string())
+                    ExtendedError::new(
+                        "Failed to connect to Files service",
+                        Some(StatusCode::BAD_REQUEST.as_u16()),
+                    )
+                    .build()
                 }) {
                     if let Ok(res) = files_grpc_client.get_file_name(request).await {
                         tracing::debug!("files_grpc_client res: {:?}", res);
                         let file_name: String = res.into_inner().file_name;
 
-                        let base_url =
-                            std::env::var("FILES_SERVICE").expect("FILES_SERVICE not set");
+                        let base_url = std::env::var("FILES_SERVICE")
+                            .map_err(|e| {
+                                tracing::error!("FILES_SERVICE not set: {}", e);
+                            })
+                            .ok()?;
                         let url = format!("{}/view/{}", base_url, file_name);
 
                         // Create an HTTP client
@@ -236,24 +272,24 @@ impl BlogPost {
                         if let Ok(text) = client.get(&url).send().await {
                             if let Ok(content) = text.text().await {
                                 let html_content = markdown::to_html(&content);
-                                html_content
+                                Some(html_content)
                             } else {
-                                "No content to show".to_string()
+                                None
                             }
                         } else {
-                            "No content to show".to_string()
+                            None
                         }
                     } else {
-                        "No content to show".to_string()
+                        None
                     }
                 } else {
-                    "No content to show".to_string()
+                    None
                 }
             } else {
-                "No content to show".to_string()
+                None
             }
         } else {
-            "No content to show".to_string()
+            None
         }
     }
 }
