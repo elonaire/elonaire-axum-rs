@@ -34,7 +34,7 @@ DEFINE FIELD title ON TABLE portfolio TYPE string;
 DEFINE FIELD description ON TABLE portfolio TYPE string;
 -- I had to cast this way because the client submits a datetime string and explictly specifying datetime type gives an error
 DEFINE FIELD start_date ON TABLE portfolio VALUE <datetime>$value;
-DEFINE FIELD OVERWRITE end_date ON TABLE portfolio VALUE IF $value IS NOT NONE { <datetime>$value } ELSE { NONE };
+DEFINE FIELD end_date ON TABLE portfolio VALUE IF $value IS NOT NONE { <datetime>$value } ELSE { NONE };
 DEFINE FIELD link ON TABLE portfolio TYPE string;
 DEFINE FIELD thumbnail ON TABLE portfolio TYPE string;
 DEFINE FIELD category ON TABLE portfolio TYPE string
@@ -55,7 +55,7 @@ DEFINE FIELD title ON TABLE resume TYPE string;
 DEFINE FIELD more_info ON TABLE resume TYPE string;
 -- I had to cast this way because the client submits a datetime string and explictly specifying datetime type gives an error
 DEFINE FIELD start_date ON TABLE resume VALUE <datetime>$value;
-DEFINE FIELD OVERWRITE end_date ON TABLE resume VALUE IF $value IS NOT NONE { <datetime>$value } ELSE { NONE };
+DEFINE FIELD end_date ON TABLE resume VALUE IF $value IS NOT NONE { <datetime>$value } ELSE { NONE };
 DEFINE FIELD link ON TABLE resume TYPE option<string>
   DEFAULT NONE;
 DEFINE FIELD created_at ON TABLE resume TYPE datetime
@@ -104,7 +104,7 @@ DEFINE FIELD status ON TABLE blog_post TYPE option<string>
 -- Allow only these values in the array
   ASSERT $value INSIDE ["Draft", "Published", "Archived"]
   DEFAULT "Draft";
-DEFINE FIELD OVERWRITE published_date ON TABLE blog_post VALUE
+DEFINE FIELD published_date ON TABLE blog_post VALUE
   IF $value IS NOT NONE { <datetime>$value }ELSE { NONE };
 DEFINE FIELD is_featured ON TABLE blog_post TYPE bool
   DEFAULT false;
