@@ -4,6 +4,12 @@ DEFINE TABLE user_id SCHEMAFULL;
 DEFINE FIELD user_id ON TABLE user_id TYPE string;
 DEFINE INDEX userIndex ON TABLE user_id COLUMNS user_id UNIQUE;
 
+-- A schema-full file_id table
+DEFINE TABLE file_id SCHEMAFULL;
+-- define some fields
+DEFINE FIELD file_id ON TABLE file_id TYPE string;
+DEFINE INDEX fileIndex ON TABLE file_id COLUMNS file_id UNIQUE;
+
 -- A schema-full professional_details table.
 DEFINE TABLE professional_details SCHEMAFULL TYPE RELATION IN user_id OUT user_id;
 -- define some fields.
@@ -36,7 +42,8 @@ DEFINE FIELD description ON TABLE portfolio TYPE string;
 DEFINE FIELD start_date ON TABLE portfolio VALUE <datetime>$value;
 DEFINE FIELD end_date ON TABLE portfolio VALUE IF $value IS NOT NONE { <datetime>$value } ELSE { NONE };
 DEFINE FIELD link ON TABLE portfolio TYPE string;
-DEFINE FIELD thumbnail ON TABLE portfolio TYPE string;
+DEFINE FIELD thumbnail ON TABLE portfolio TYPE string
+  ASSERT string::is::url($value);
 DEFINE FIELD category ON TABLE portfolio TYPE string
 -- Allow only these values in the array
   ASSERT $value INSIDE ["JavaScript", "Rust", "Database", "Cloud", "DevOps", "Mobile"];
@@ -80,7 +87,8 @@ DEFINE TABLE service SCHEMAFULL TYPE RELATION IN user_id OUT user_id;
 DEFINE FIELD title ON TABLE service TYPE string;
 DEFINE INDEX titleIndex ON TABLE service COLUMNS title UNIQUE;
 DEFINE FIELD description ON TABLE service TYPE string;
-DEFINE FIELD thumbnail ON TABLE service TYPE string;
+DEFINE FIELD thumbnail ON TABLE service TYPE string
+  ASSERT string::is::url($value);
 DEFINE FIELD created_at ON TABLE service TYPE datetime
   DEFAULT time::now() READONLY;
 DEFINE FIELD updated_at ON TABLE service TYPE datetime
@@ -92,13 +100,14 @@ DEFINE TABLE blog_post SCHEMAFULL TYPE RELATION IN user_id OUT user_id;
 -- define some fields.
 DEFINE FIELD title ON TABLE blog_post TYPE string;
 DEFINE FIELD short_description ON TABLE blog_post TYPE string;
-DEFINE FIELD thumbnail ON TABLE blog_post TYPE string;
-DEFINE FIELD content_file ON TABLE blog_post TYPE string;
+DEFINE FIELD thumbnail ON TABLE blog_post TYPE string
+  ASSERT string::is::url($value);
+DEFINE FIELD content_file ON TABLE blog_post TYPE record<file_id>;
 DEFINE FIELD other_images ON TABLE blog_post TYPE array<string>;
 DEFINE FIELD category ON TABLE blog_post TYPE string
 -- Allow only these values in the array
   ASSERT $value INSIDE ["WebDevelopment", "MobileDevelopment", "ArtificialIntelligence", "Technology", "Lifestyle"];
-DEFINE FIELD link ON TABLE blog_post TYPE string VALUE string::slug(title);
+DEFINE FIELD link ON TABLE blog_post VALUE string::slug(title);
 DEFINE INDEX blogPostIndex ON TABLE blog_post COLUMNS link UNIQUE;
 DEFINE FIELD status ON TABLE blog_post TYPE option<string>
 -- Allow only these values in the array
@@ -174,7 +183,8 @@ DEFINE FIELD type ON TABLE skill TYPE string
 -- Allow only these values in the array
   ASSERT $value INSIDE ["Technical", "Soft"];
 DEFINE INDEX skillIndex ON TABLE skill COLUMNS name UNIQUE;
-DEFINE FIELD thumbnail ON TABLE skill TYPE string;
+DEFINE FIELD thumbnail ON TABLE skill TYPE string
+  ASSERT string::is::url($value);
 DEFINE FIELD level ON TABLE skill TYPE option<string>
 -- Allow only these values in the array
   ASSERT $value INSIDE ["Beginner", "Intermediate", "Advanced", "Expert", None]

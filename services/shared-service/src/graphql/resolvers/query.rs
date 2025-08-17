@@ -1,24 +1,37 @@
-use std::sync::Arc;
+use std::{env, sync::Arc};
 
 use async_graphql::{Context, Error, Object};
 use axum::Extension;
-use hyper::{HeaderMap, StatusCode};
+use hyper::{
+    header::{AUTHORIZATION, COOKIE},
+    HeaderMap, StatusCode,
+};
+use reqwest::Client;
 use surrealdb::{engine::remote::ws::Client as SurrealClient, Surreal};
+use tonic::transport::Channel;
 
 use crate::graphql::schemas::{
-    blog::{self, BlogStatus},
+    blog::{self, BlogPost, BlogStatus},
     shared::{self},
     user::{self, UserResources},
 };
 
-use lib::{middleware::auth::graphql::check_auth_from_acl, utils::custom_error::ExtendedError};
+use lib::{
+    integration::grpc::clients::files_service::{files_service_client::FilesServiceClient, FileId},
+    middleware::auth::graphql::check_auth_from_acl,
+    utils::{
+        custom_error::ExtendedError,
+        grpc::{create_grpc_client, AuthMetaData},
+        models::UploadedFile,
+    },
+};
 
 pub struct Query;
 
 #[Object]
 impl Query {
     /// Get all blog posts
-    pub async fn get_blog_posts(
+    pub async fn fetch_blog_posts(
         &self,
         ctx: &Context<'_>,
         status: BlogStatus,
@@ -54,7 +67,7 @@ impl Query {
 
     /// Get user resources
     /// Combines all the resources of a user into a single graphql query
-    pub async fn get_user_resources(
+    pub async fn fetch_user_resources(
         &self,
         ctx: &Context<'_>,
         user_id: String,
@@ -143,7 +156,166 @@ impl Query {
         }
     }
 
-    pub async fn get_messages(
+    /// Fetch Blog Content
+    pub async fn fetch_single_blog_post(
+        &self,
+        ctx: &Context<'_>,
+        blog_id_or_slug: String,
+    ) -> async_graphql::Result<BlogPost> {
+        let db = ctx
+            .data::<Extension<Arc<Surreal<SurrealClient>>>>()
+            .map_err(|e| {
+                tracing::error!("Error Surreal Client: {:?}", e);
+                ExtendedError::new(
+                    "Server Error",
+                    Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+                )
+                .build()
+            })?;
+
+        let headers = ctx.data_opt::<HeaderMap>().ok_or_else(|| {
+            ExtendedError::new("Unauthorized", Some(StatusCode::UNAUTHORIZED.as_u16())).build()
+        })?;
+
+        let mut blog_post_db_query = db
+            .query(
+                "
+                BEGIN TRANSACTION;
+                LET $blog_id = type::thing('blog_post', $blog_id_or_slug);
+                LET $blog_post = SELECT *, ->has_comment->comment[*] AS comments FROM ONLY blog_post WHERE id = $blog_id OR link = $blog_id_or_slug LIMIT 1;
+                RETURN $blog_post;
+                COMMIT TRANSACTION;
+                "
+            )
+            .bind(("blog_id_or_slug", blog_id_or_slug))
+            .await
+            .map_err(|e| {
+                tracing::debug!("DB Query error: {}", e);
+                ExtendedError::new(
+                    "Server Error",
+                    Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+                )
+                .build()
+            })?;
+
+        let blog_post: Option<BlogPost> = blog_post_db_query.take(0)?;
+
+        if blog_post.is_none() {
+            return Err(ExtendedError::new(
+                "Blog post not found",
+                Some(StatusCode::NOT_FOUND.as_u16()),
+            )
+            .build());
+        }
+
+        let mut blog_post = blog_post.unwrap();
+
+        let mut file_id_db_query = db
+            .query(
+                "
+                SELECT * FROM ONLY file_id WHERE id = $internal_file_id LIMIT 1
+                ",
+            )
+            .bind(("internal_file_id", blog_post.content_file.clone()))
+            .await
+            .map_err(|e| {
+                tracing::debug!("DB Query error: {}", e);
+                ExtendedError::new(
+                    "Server Error",
+                    Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+                )
+                .build()
+            })?;
+
+        let uploaded_file: Option<UploadedFile> = file_id_db_query.take(0)?;
+
+        if uploaded_file.is_none() {
+            return Err(ExtendedError::new(
+                "Content not found",
+                Some(StatusCode::NOT_FOUND.as_u16()),
+            )
+            .build());
+        }
+
+        let mut request = tonic::Request::new(FileId {
+            file_id: uploaded_file.unwrap().file_id,
+        });
+
+        let auth_header = headers.get(AUTHORIZATION);
+        let cookie_header = headers.get(COOKIE);
+
+        let auth_metadata: AuthMetaData<FileId> = AuthMetaData {
+            auth_header,
+            cookie_header,
+            constructed_grpc_request: Some(&mut request),
+        };
+
+        let files_service_grpc = env::var("FILES_SERVICE_GRPC").map_err(|e| {
+            tracing::debug!("Missing FILES_SERVICE_GRPC environment variable: {}", e);
+            ExtendedError::new(
+                "Server Error",
+                Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+            )
+            .build()
+        })?;
+
+        let blog_content = if let Ok(mut files_grpc_client) =
+            create_grpc_client::<FileId, FilesServiceClient<Channel>>(
+                &files_service_grpc,
+                true,
+                Some(auth_metadata),
+            )
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to connect to Files service: {}", e);
+                // Error::new("Failed to connect to Files service".to_string())
+                ExtendedError::new(
+                    "Failed to connect to Files service",
+                    Some(StatusCode::BAD_REQUEST.as_u16()),
+                )
+                .build()
+            }) {
+            if let Ok(res) = files_grpc_client.get_file_name(request).await {
+                tracing::debug!("files_grpc_client res: {:?}", res);
+                let file_name: String = res.into_inner().file_name;
+
+                let base_url = std::env::var("FILES_SERVICE").map_err(|e| {
+                    tracing::error!("FILES_SERVICE environment variable not set: {}", e);
+
+                    ExtendedError::new(
+                        "Server Error",
+                        Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+                    )
+                    .build()
+                })?;
+                let url = format!("{}/view/{}", base_url, file_name);
+
+                // Create an HTTP client
+                let client = Client::new();
+
+                // Fetch the content from the URL
+                if let Ok(text) = client.get(&url).send().await {
+                    if let Ok(content) = text.text().await {
+                        let html_content = markdown::to_html(&content);
+                        Some(html_content)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        blog_post.content = blog_content;
+        Ok(blog_post)
+    }
+
+    pub async fn fetch_messages(
         &self,
         ctx: &Context<'_>,
     ) -> async_graphql::Result<Vec<shared::Message>> {

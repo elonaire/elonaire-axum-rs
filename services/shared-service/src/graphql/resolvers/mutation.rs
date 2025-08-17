@@ -5,7 +5,7 @@ use axum::Extension;
 // use gql_client::Client as GQLClient;
 
 use hyper::{HeaderMap, StatusCode};
-use lib::utils::models::{ForeignKey, User};
+use lib::utils::models::{ForeignKey, UploadedFile, User};
 use lib::{
     integration::foreign_key::add_foreign_key_if_not_exists,
     middleware::auth::graphql::check_auth_from_acl, utils::custom_error::ExtendedError,
@@ -110,7 +110,7 @@ impl Mutation {
     pub async fn add_user_service(
         &self,
         ctx: &Context<'_>,
-        user_service: user::UserService,
+        user_service: user::UserServiceInput,
     ) -> async_graphql::Result<Vec<user::UserService>> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
@@ -277,7 +277,7 @@ impl Mutation {
         &self,
         ctx: &Context<'_>,
         resume_item: user::UserResumeInput,
-    ) -> async_graphql::Result<user::UserResumeOutput> {
+    ) -> async_graphql::Result<user::UserResume> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .map_err(|e| {
@@ -346,12 +346,11 @@ impl Mutation {
                 .build()
             })?;
 
-        let response: Option<user::UserResumeOutput> =
-            database_transaction.take(0).map_err(|_e| {
-                tracing::debug!("database_transaction: {:?}", database_transaction);
+        let response: Option<user::UserResume> = database_transaction.take(0).map_err(|e| {
+            tracing::debug!("database_transaction: {:?}", e);
 
-                ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
-            })?;
+            ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
+        })?;
 
         match response {
             Some(resume_item) => Ok(resume_item),
@@ -452,7 +451,7 @@ impl Mutation {
     pub async fn add_skill(
         &self,
         ctx: &Context<'_>,
-        skill: user::UserSkill,
+        skill: user::UserSkillInput,
     ) -> async_graphql::Result<Vec<user::UserSkill>> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
@@ -532,7 +531,7 @@ impl Mutation {
         &self,
         ctx: &Context<'_>,
         blog_post: blog::BlogPostInput,
-    ) -> async_graphql::Result<Vec<blog::BlogPost>> {
+    ) -> async_graphql::Result<blog::BlogPost> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .map_err(|e| {
@@ -561,48 +560,85 @@ impl Mutation {
             foreign_key: auth_res_from_acl.sub.clone(),
         };
 
-        let id_added =
-            add_foreign_key_if_not_exists::<Extension<Arc<Surreal<SurrealClient>>>, User>(
-                db, user_fk,
-            )
-            .await;
+        let content_file_fk = ForeignKey {
+            table: "file_id".to_string(),
+            column: "file_id".to_string(),
+            foreign_key: blog_post.content_file.clone(),
+        };
 
-        if id_added.is_none() {
+        let added_user = add_foreign_key_if_not_exists::<
+            Extension<Arc<Surreal<SurrealClient>>>,
+            User,
+        >(db, user_fk)
+        .await
+        .ok_or_else(|| {
             tracing::error!("Failed to add user_id");
-            return Err(ExtendedError::new(
+            ExtendedError::new(
                 "Something went wrong",
                 Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
             )
-            .build());
-        }
+            .build()
+        })?;
+
+        let added_file = add_foreign_key_if_not_exists::<
+            Extension<Arc<Surreal<SurrealClient>>>,
+            UploadedFile,
+        >(db, content_file_fk)
+        .await
+        .ok_or_else(|| {
+            tracing::error!("Failed to add content_file");
+            ExtendedError::new(
+                "Something went wrong",
+                Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+            )
+            .build()
+        })?;
 
         let mut database_transaction = db
             .query(
                 "
             BEGIN TRANSACTION;
             LET $user = (SELECT VALUE id FROM type::table($table) WHERE user_id = $user_id LIMIT 1);
+            LET $content_file = type::thing('file_id', $file_id);
+            IF !$content_file.exists() {
+                THROW 'Invalid Input';
+            };
 
-            LET $blog_post = (RELATE $user->blog_post->$user CONTENT $blog_post_input RETURN AFTER);
+            LET $blog_post = (RELATE $user->blog_post->$user CONTENT {
+                title: $blog_post_input.title,
+                short_description: $blog_post_input.short_description,
+                status: $blog_post_input.status,
+                thumbnail: $blog_post_input.thumbnail,
+                content_file: $content_file,
+                other_images: $blog_post_input.other_images,
+                category: $blog_post_input.category
+            } RETURN AFTER);
             RETURN $blog_post;
             COMMIT TRANSACTION;
             ",
             )
             .bind(("blog_post_input", blog_post))
             .bind(("table", "user_id"))
-            .bind(("user_id", auth_res_from_acl.sub))
+            .bind(("user_id", added_user.user_id))
+            .bind(("file_id", added_file.id))
             .await
             .map_err(|e| {
                 tracing::debug!("DB Query Error: {}", e);
                 Error::new("Internal Server Error")
             })?;
 
-        let response: Vec<blog::BlogPost> = database_transaction.take(0).map_err(|_e| {
-            tracing::debug!("database_transaction: {:?}", database_transaction);
+        let response: Option<blog::BlogPost> = database_transaction.take(0).map_err(|e| {
+            tracing::debug!("Deserialization Error: {:?}", e);
 
             ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
         })?;
 
-        Ok(response)
+        match response {
+            Some(blog_post) => Ok(blog_post),
+            None => {
+                Err(ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build())
+            }
+        }
     }
 
     /// Add a comment to a blog post
