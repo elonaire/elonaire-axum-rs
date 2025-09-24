@@ -15,12 +15,19 @@ pub struct Reaction {
 // enum for ReactionType
 #[derive(Clone, Debug, Serialize, Deserialize, Enum, Copy, Eq, PartialEq)]
 pub enum ReactionType {
+    #[graphql(name = "Like")]
     Like,
+    #[graphql(name = "Dislike")]
     Dislike,
+    #[graphql(name = "Love")]
     Love,
+    #[graphql(name = "Haha")]
     Haha,
+    #[graphql(name = "Wow")]
     Wow,
+    #[graphql(name = "Sad")]
     Sad,
+    #[graphql(name = "Angry")]
     Angry,
 }
 
