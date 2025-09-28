@@ -16,8 +16,8 @@ DEFINE TABLE professional_details SCHEMAFULL TYPE RELATION IN user_id OUT user_i
 DEFINE FIELD occupation ON TABLE professional_details TYPE string;
 DEFINE FIELD active ON TABLE professional_details TYPE bool
   DEFAULT false;
-DEFINE EVENT enforce_single_true ON professional_details WHEN $event = 'CREATE' OR $event = 'UPDATE' THEN {
-    IF $before.active == true {
+DEFINE EVENT OVERWRITE enforce_single_true ON professional_details WHEN $event = 'CREATE' OR $event = 'UPDATE' THEN {
+    IF $after.active {
         LET $existing_true = SELECT * FROM professional_details WHERE active = true;
         IF array::len($existing_true) > 0 {
             THROW 'You have an active professional detail already. Please deactivate it first.';

@@ -26,7 +26,7 @@ impl Mutation {
         &self,
         ctx: &Context<'_>,
         professional_details: UserProfessionalInfo,
-    ) -> async_graphql::Result<Vec<UserProfessionalInfo>> {
+    ) -> async_graphql::Result<UserProfessionalInfo> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .map_err(|e| {
@@ -77,7 +77,7 @@ impl Mutation {
             "
             BEGIN TRANSACTION;
             LET $user = (SELECT VALUE id FROM ONLY type::table($table) WHERE user_id = $user_id LIMIT 1);
-            LET $professional_details = (RELATE $user -> professional_details -> $user CONTENT $professional_details_input RETURN AFTER);
+            LET $professional_details = (RELATE $user -> professional_details -> $user CONTENT $professional_details_input RETURN AFTER)[0];
             RETURN $professional_details;
             COMMIT TRANSACTION;
             "
@@ -96,14 +96,21 @@ impl Mutation {
             .build()
         })?;
 
-        let response: Vec<UserProfessionalInfo> = database_transaction.take(0).map_err(|e| {
+        let response: Option<UserProfessionalInfo> = database_transaction.take(0).map_err(|e| {
             tracing::debug!("Deserialization Failed: {}", e);
             tracing::debug!("database_transaction: {:?}", database_transaction);
             // Error::new("Internal Server Error.")
             ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
         })?;
 
-        Ok(response)
+        match response {
+            Some(professional_info) => Ok(professional_info),
+            None => {
+                Err(ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build())
+            }
+        }
+
+        // Ok(response)
     }
 
     /// Create a new user service
@@ -111,7 +118,7 @@ impl Mutation {
         &self,
         ctx: &Context<'_>,
         user_service: user::UserServiceInput,
-    ) -> async_graphql::Result<Vec<user::UserService>> {
+    ) -> async_graphql::Result<user::UserService> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .map_err(|e| {
@@ -161,7 +168,7 @@ impl Mutation {
             BEGIN TRANSACTION;
             LET $user = (SELECT VALUE id FROM ONLY type::table($table) WHERE user_id = $user_id LIMIT 1);
 
-            LET $user_service = (RELATE $user->service->$user CONTENT $user_service_input RETURN AFTER);
+            LET $user_service = (RELATE $user->service->$user CONTENT $user_service_input RETURN AFTER)[0];
             RETURN $user_service;
             COMMIT TRANSACTION;
             ",
@@ -180,13 +187,20 @@ impl Mutation {
                 .build()
             })?;
 
-        let response: Vec<user::UserService> = database_transaction.take(0).map_err(|_e| {
-            tracing::debug!("database_transaction: {:?}", database_transaction);
+        let response: Option<user::UserService> = database_transaction.take(0).map_err(|e| {
+            tracing::error!("Deserialization Error: {:?}", e);
 
             ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
         })?;
 
-        Ok(response)
+        match response {
+            Some(user_service) => Ok(user_service),
+            None => {
+                Err(ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build())
+            }
+        }
+
+        // Ok(response)
     }
 
     /// Create a new user project/portfolio item
@@ -194,7 +208,7 @@ impl Mutation {
         &self,
         ctx: &Context<'_>,
         portfolio_item: user::UserPortfolioInput,
-    ) -> async_graphql::Result<Vec<user::UserPortfolio>> {
+    ) -> async_graphql::Result<user::UserPortfolio> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .map_err(|e| {
@@ -241,12 +255,11 @@ impl Mutation {
         let mut database_transaction = db
             .query(
                 "
-            BEGIN TRANSACTION;
-            LET $user = (SELECT VALUE id FROM ONLY type::table($table) WHERE user_id = $user_id LIMIT 1);
-
-            LET $portfolio_item = (RELATE $user->portfolio->$user CONTENT $portfolio_item_input RETURN AFTER);
-            RETURN $portfolio_item;
-            COMMIT TRANSACTION;
+                BEGIN TRANSACTION;
+                LET $user = (SELECT VALUE id FROM ONLY type::table($table) WHERE user_id = $user_id LIMIT 1);
+                LET $portfolio_item = SELECT *, ->uses_skill->skill.* AS skills FROM ONLY (RELATE $user -> portfolio -> $user CONTENT $portfolio_item_input RETURN AFTER)[0] LIMIT 1;
+                RETURN $portfolio_item;
+                COMMIT TRANSACTION;
             ",
             )
             .bind(("portfolio_item_input", portfolio_item))
@@ -263,13 +276,20 @@ impl Mutation {
                 .build()
             })?;
 
-        let response: Vec<user::UserPortfolio> = database_transaction.take(0).map_err(|_e| {
-            tracing::debug!("database_transaction: {:?}", database_transaction);
+        let response: Option<user::UserPortfolio> = database_transaction.take(0).map_err(|e| {
+            tracing::error!("Deserialization Error: {:?}", e);
 
             ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
         })?;
 
-        Ok(response)
+        match response {
+            Some(user_portfolio) => Ok(user_portfolio),
+            None => {
+                Err(ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build())
+            }
+        }
+
+        // Ok(response)
     }
 
     /// Create a new user resume item
@@ -327,7 +347,7 @@ impl Mutation {
             BEGIN TRANSACTION;
             LET $user = (SELECT VALUE id FROM type::table($table) WHERE user_id = $user_id LIMIT 1);
 
-            LET $resume_item = (RELATE $user->resume->$user CONTENT $resume_item_input RETURN AFTER);
+            LET $resume_item = (RELATE $user->resume->$user CONTENT $resume_item_input RETURN AFTER)[0];
             RETURN $resume_item;
             COMMIT TRANSACTION;
             ",
@@ -347,7 +367,7 @@ impl Mutation {
             })?;
 
         let response: Option<user::UserResume> = database_transaction.take(0).map_err(|e| {
-            tracing::debug!("database_transaction: {:?}", e);
+            tracing::error!("Deserialization Error: {:?}", e);
 
             ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
         })?;
@@ -368,7 +388,7 @@ impl Mutation {
         ctx: &Context<'_>,
         resume_item_achievement: user::ResumeAchievement,
         resume_id: String,
-    ) -> async_graphql::Result<Vec<user::ResumeAchievement>> {
+    ) -> async_graphql::Result<user::ResumeAchievement> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .map_err(|e| {
@@ -418,7 +438,7 @@ impl Mutation {
             BEGIN TRANSACTION;
             LET $resume = type::thing($resume_id);
 
-            LET $resume_item_achievement = (RELATE $resume->achievement->$resume CONTENT $resume_item_achievement_input RETURN AFTER);
+            LET $resume_item_achievement = (RELATE $resume->achievement->$resume CONTENT $resume_item_achievement_input RETURN AFTER)[0];
             RETURN $resume_item_achievement;
             COMMIT TRANSACTION;
             "
@@ -437,14 +457,21 @@ impl Mutation {
             .build()
         })?;
 
-        let response: Vec<user::ResumeAchievement> =
-            database_transaction.take(0).map_err(|_e| {
-                tracing::debug!("database_transaction: {:?}", database_transaction);
+        let response: Option<user::ResumeAchievement> =
+            database_transaction.take(0).map_err(|e| {
+                tracing::error!("Deserialization Error: {:?}", e);
 
                 ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
             })?;
 
-        Ok(response)
+        match response {
+            Some(resume_achievement) => Ok(resume_achievement),
+            None => {
+                Err(ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build())
+            }
+        }
+
+        // Ok(response)
     }
 
     /// Create a new user skill
@@ -452,7 +479,7 @@ impl Mutation {
         &self,
         ctx: &Context<'_>,
         skill: user::UserSkillInput,
-    ) -> async_graphql::Result<Vec<user::UserSkill>> {
+    ) -> async_graphql::Result<user::UserSkill> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .map_err(|e| {
@@ -502,7 +529,7 @@ impl Mutation {
             BEGIN TRANSACTION;
             LET $user = (SELECT VALUE id FROM type::table($table) WHERE user_id = $user_id LIMIT 1);
 
-            LET $skill = (RELATE $user->skill->$user CONTENT $skill_input RETURN AFTER);
+            LET $skill = (RELATE $user->skill->$user CONTENT $skill_input RETURN AFTER)[0];
             RETURN $skill;
             COMMIT TRANSACTION;
             ",
@@ -517,13 +544,20 @@ impl Mutation {
                 ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
             })?;
 
-        let response: Vec<user::UserSkill> = database_transaction.take(0).map_err(|_e| {
-            tracing::debug!("database_transaction: {:?}", database_transaction);
+        let response: Option<user::UserSkill> = database_transaction.take(0).map_err(|e| {
+            tracing::error!("Deserialization Error: {:?}", e);
 
             ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
         })?;
 
-        Ok(response)
+        match response {
+            Some(user_skill) => Ok(user_skill),
+            None => {
+                Err(ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build())
+            }
+        }
+
+        // Ok(response)
     }
 
     /// Create a new blog post
@@ -612,7 +646,7 @@ impl Mutation {
                 content_file: $content_file,
                 other_images: $blog_post_input.other_images,
                 category: $blog_post_input.category
-            } RETURN AFTER);
+            } RETURN AFTER)[0];
             RETURN $blog_post;
             COMMIT TRANSACTION;
             ",
@@ -628,7 +662,7 @@ impl Mutation {
             })?;
 
         let response: Option<blog::BlogPost> = database_transaction.take(0).map_err(|e| {
-            tracing::debug!("Deserialization Error: {:?}", e);
+            tracing::error!("Deserialization Error: {:?}", e);
 
             ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
         })?;
@@ -647,7 +681,7 @@ impl Mutation {
         ctx: &Context<'_>,
         blog_comment: blog::BlogComment,
         blog_post_id: String,
-    ) -> async_graphql::Result<Vec<blog::BlogComment>> {
+    ) -> async_graphql::Result<blog::BlogComment> {
         // TODO: Might have to allow anonymous comments?
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
@@ -728,13 +762,18 @@ impl Mutation {
             .build()
         })?;
 
-        let response: Vec<blog::BlogComment> = database_transaction.take(0).map_err(|_e| {
-            tracing::debug!("database_transaction: {:?}", database_transaction);
+        let response: Option<blog::BlogComment> = database_transaction.take(0).map_err(|e| {
+            tracing::error!("Deserialization Error: {:?}", e);
 
             ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
         })?;
 
-        Ok(response)
+        match response {
+            Some(blog_comment) => Ok(blog_comment),
+            None => {
+                Err(ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build())
+            }
+        }
     }
 
     /// Reply to a comment
@@ -743,7 +782,7 @@ impl Mutation {
         ctx: &Context<'_>,
         blog_comment: blog::BlogComment,
         comment_id: String,
-    ) -> async_graphql::Result<Vec<blog::BlogComment>> {
+    ) -> async_graphql::Result<blog::BlogComment> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .map_err(|e| {
@@ -823,13 +862,18 @@ impl Mutation {
             .build()
         })?;
 
-        let response: Vec<blog::BlogComment> = database_transaction.take(0).map_err(|_e| {
-            tracing::debug!("database_transaction: {:?}", database_transaction);
+        let response: Option<blog::BlogComment> = database_transaction.take(0).map_err(|e| {
+            tracing::error!("Deserialization Error: {:?}", e);
 
             ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
         })?;
 
-        Ok(response)
+        match response {
+            Some(blog_comment) => Ok(blog_comment),
+            None => {
+                Err(ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build())
+            }
+        }
     }
 
     /// React to a blog post
@@ -838,7 +882,7 @@ impl Mutation {
         ctx: &Context<'_>,
         reaction: shared::Reaction,
         blog_post_id: String,
-    ) -> async_graphql::Result<Vec<shared::Reaction>> {
+    ) -> async_graphql::Result<shared::Reaction> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .map_err(|e| {
@@ -892,7 +936,7 @@ impl Mutation {
 
 
             -- Relate the reaction to the user and blog_post
-            LET $reaction = (RELATE $user->reaction->$blog_post CONTENT $reaction_input RETURN AFTER);
+            LET $reaction = (RELATE $user->reaction->$blog_post CONTENT $reaction_input RETURN AFTER)[0];
 
             RETURN $reaction;
             COMMIT TRANSACTION;
@@ -914,13 +958,18 @@ impl Mutation {
             .build()
         })?;
 
-        let response: Vec<shared::Reaction> = database_transaction.take(0).map_err(|_e| {
-            tracing::debug!("database_transaction: {:?}", database_transaction);
+        let response: Option<shared::Reaction> = database_transaction.take(0).map_err(|e| {
+            tracing::error!("Deserialization Error: {:?}", e);
 
             ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
         })?;
 
-        Ok(response)
+        match response {
+            Some(resume_item) => Ok(resume_item),
+            None => {
+                Err(ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build())
+            }
+        }
     }
 
     /// React to a blog comment
@@ -929,7 +978,7 @@ impl Mutation {
         ctx: &Context<'_>,
         reaction: shared::Reaction,
         comment_id: String,
-    ) -> async_graphql::Result<Vec<shared::Reaction>> {
+    ) -> async_graphql::Result<shared::Reaction> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .map_err(|e| {
@@ -982,7 +1031,7 @@ impl Mutation {
             LET $comment = (SELECT VALUE id FROM ONLY type::table($comment_table) WHERE id = type::thing($comment_id) LIMIT 1);
 
             -- Relate the reaction to the user
-            LET $reaction = (RELATE $user->reaction->$comment CONTENT $reaction_input RETURN AFTER);
+            LET $reaction = (RELATE $user->reaction->$comment CONTENT $reaction_input RETURN AFTER)[0];
 
             RETURN $reaction;
             COMMIT TRANSACTION;
@@ -1004,13 +1053,18 @@ impl Mutation {
             .build()
         })?;
 
-        let response: Vec<shared::Reaction> = database_transaction.take(0).map_err(|_e| {
-            tracing::debug!("database_transaction: {:?}", database_transaction);
+        let response: Option<shared::Reaction> = database_transaction.take(0).map_err(|e| {
+            tracing::error!("Deserialization Error: {:?}", e);
 
             ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
         })?;
 
-        Ok(response)
+        match response {
+            Some(reaction) => Ok(reaction),
+            None => {
+                Err(ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build())
+            }
+        }
     }
 
     /// Send a message
@@ -1032,7 +1086,7 @@ impl Mutation {
 
         let message: Option<shared::Message> =
             db.create("message").content(message).await.map_err(|e| {
-                tracing::debug!("DB Query Error: {}", e);
+                tracing::error!("Deserialization Error: {:?}", e);
 
                 ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
             })?;
@@ -1051,7 +1105,7 @@ impl Mutation {
         ctx: &Context<'_>,
         skill_id: String,
         portfolio_item_id: String,
-    ) -> async_graphql::Result<Vec<user::UserSkill>> {
+    ) -> async_graphql::Result<user::UserSkill> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .map_err(|e| {
@@ -1083,7 +1137,7 @@ impl Mutation {
 
             -- Relate the skill to the portfolio item
             RELATE $portfolio_item->uses_skill->$skill;
-            LET $skill_val = SELECT * FROM $skill;
+            LET $skill_val = SELECT * FROM ONLY $skill LIMIT 1;
 
             RETURN $skill_val;
             COMMIT TRANSACTION;
@@ -1103,12 +1157,17 @@ impl Mutation {
                 ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
             })?;
 
-        let response: Vec<user::UserSkill> = database_transaction.take(0).map_err(|_e| {
-            tracing::debug!("database_transaction: {:?}", database_transaction);
+        let response: Option<user::UserSkill> = database_transaction.take(0).map_err(|e| {
+            tracing::error!("Deserialization Error: {:?}", e);
             ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
         })?;
 
-        Ok(response)
+        match response {
+            Some(user_skill) => Ok(user_skill),
+            None => {
+                Err(ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build())
+            }
+        }
     }
 
     pub async fn edit_blog_post(
@@ -1143,7 +1202,7 @@ impl Mutation {
             .merge(blog_post)
             .await
             .map_err(|e| {
-                tracing::debug!("DB Query Error: {}", e);
+                tracing::error!("Deserialization Error: {:?}", e);
 
                 ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
             })?;
