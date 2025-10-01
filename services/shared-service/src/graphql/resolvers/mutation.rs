@@ -22,7 +22,7 @@ pub struct Mutation;
 #[Object]
 impl Mutation {
     /// Create new professional details
-    async fn add_professional_details(
+    async fn create_professional_details(
         &self,
         ctx: &Context<'_>,
         professional_details: UserProfessionalInfo,
@@ -114,7 +114,7 @@ impl Mutation {
     }
 
     /// Create a new user service
-    pub async fn add_user_service(
+    pub async fn create_user_service(
         &self,
         ctx: &Context<'_>,
         user_service: user::UserServiceInput,
@@ -204,7 +204,7 @@ impl Mutation {
     }
 
     /// Create a new user project/portfolio item
-    pub async fn add_portfolio_item(
+    pub async fn create_portfolio_item(
         &self,
         ctx: &Context<'_>,
         portfolio_item: user::UserPortfolioInput,
@@ -293,7 +293,7 @@ impl Mutation {
     }
 
     /// Create a new user resume item
-    pub async fn add_resume_item(
+    pub async fn create_resume_item(
         &self,
         ctx: &Context<'_>,
         resume_item: user::UserResumeInput,
@@ -383,7 +383,7 @@ impl Mutation {
     }
 
     /// Create a new user resume item achievement
-    pub async fn add_resume_item_achievement(
+    pub async fn create_resume_item_achievement(
         &self,
         ctx: &Context<'_>,
         resume_item_achievement: user::ResumeAchievement,
@@ -475,7 +475,7 @@ impl Mutation {
     }
 
     /// Create a new user skill
-    pub async fn add_skill(
+    pub async fn create_skill(
         &self,
         ctx: &Context<'_>,
         skill: user::UserSkillInput,
@@ -561,7 +561,7 @@ impl Mutation {
     }
 
     /// Create a new blog post
-    pub async fn add_blog_post(
+    pub async fn create_blog_post(
         &self,
         ctx: &Context<'_>,
         blog_post: blog::BlogPostInput,
@@ -1099,8 +1099,8 @@ impl Mutation {
         }
     }
 
-    /// Relate a skill to a portfolio item
-    pub async fn relate_skill_to_portfolio_item(
+    /// Add a skill to a portfolio item
+    pub async fn add_skill_to_portfolio_item(
         &self,
         ctx: &Context<'_>,
         skill_id: String,
