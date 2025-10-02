@@ -347,7 +347,7 @@ impl Mutation {
             BEGIN TRANSACTION;
             LET $user = (SELECT VALUE id FROM type::table($table) WHERE user_id = $user_id LIMIT 1);
 
-            LET $resume_item = (RELATE $user->resume->$user CONTENT $resume_item_input RETURN AFTER)[0];
+            LET $resume_item = SELECT *, ->achievement.* AS achievements  FROM ONLY (RELATE $user->resume->$user CONTENT $resume_item_input RETURN AFTER)[0] LIMIT 1;
             RETURN $resume_item;
             COMMIT TRANSACTION;
             ",
