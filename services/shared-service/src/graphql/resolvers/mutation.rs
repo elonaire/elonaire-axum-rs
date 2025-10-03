@@ -564,7 +564,7 @@ impl Mutation {
     pub async fn create_blog_post(
         &self,
         ctx: &Context<'_>,
-        blog_post: blog::BlogPostInput,
+        mut blog_post: blog::BlogPostInput,
     ) -> async_graphql::Result<blog::BlogPost> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
@@ -628,24 +628,18 @@ impl Mutation {
             .build()
         })?;
 
+        blog_post.content_file = format!(
+            "file_id:{}",
+            added_file.id.as_ref().map(|t| &t.id).expect("id").to_raw()
+        );
+
         let mut database_transaction = db
             .query(
                 "
             BEGIN TRANSACTION;
             LET $user = (SELECT VALUE id FROM type::table($table) WHERE user_id = $user_id LIMIT 1);
-            LET $content_file = type::thing('file_id', $file_id);
-            IF !$content_file.exists() {
-                THROW 'Invalid Input';
-            };
 
-            LET $blog_post = (RELATE $user->blog_post->$user CONTENT {
-                title: $blog_post_input.title,
-                short_description: $blog_post_input.short_description,
-                status: $blog_post_input.status,
-                thumbnail: $blog_post_input.thumbnail,
-                content_file: $content_file,
-                category: $blog_post_input.category
-            } RETURN AFTER)[0];
+            LET $blog_post = (RELATE $user->blog_post->$user CONTENT $blog_post_input RETURN AFTER)[0];
             RETURN $blog_post;
             COMMIT TRANSACTION;
             ",
@@ -653,7 +647,7 @@ impl Mutation {
             .bind(("blog_post_input", blog_post))
             .bind(("table", "user_id"))
             .bind(("user_id", added_user.user_id))
-            .bind(("file_id", added_file.id))
+            // .bind(("file_id", added_file.id))
             .await
             .map_err(|e| {
                 tracing::debug!("DB Query Error: {}", e);

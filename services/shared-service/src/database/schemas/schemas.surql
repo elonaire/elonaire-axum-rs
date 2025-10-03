@@ -102,7 +102,7 @@ DEFINE FIELD title ON TABLE blog_post TYPE string;
 DEFINE FIELD short_description ON TABLE blog_post TYPE string;
 DEFINE FIELD thumbnail ON TABLE blog_post TYPE string
   ASSERT string::is::url($value);
-DEFINE FIELD content_file ON TABLE blog_post TYPE record<file_id>;
+DEFINE FIELD content_file ON TABLE blog_post VALUE <record<file_id>>$value;
 DEFINE FIELD category ON TABLE blog_post TYPE string
 -- Allow only these values in the array
   ASSERT $value INSIDE ["WebDevelopment", "MobileDevelopment", "ArtificialIntelligence", "Technology", "Lifestyle"];
