@@ -16,7 +16,7 @@ DEFINE TABLE professional_details SCHEMAFULL TYPE RELATION IN user_id OUT user_i
 DEFINE FIELD occupation ON TABLE professional_details TYPE string;
 DEFINE FIELD active ON TABLE professional_details TYPE bool
   DEFAULT false;
-DEFINE EVENT OVERWRITE enforce_single_true ON professional_details WHEN $event = 'CREATE' OR $event = 'UPDATE' THEN {
+DEFINE EVENT enforce_single_true ON professional_details WHEN $event = 'CREATE' OR $event = 'UPDATE' THEN {
     IF $after.active {
         LET $existing_true = SELECT * FROM professional_details WHERE active = true;
         IF array::len($existing_true) > 0 {
@@ -103,7 +103,6 @@ DEFINE FIELD short_description ON TABLE blog_post TYPE string;
 DEFINE FIELD thumbnail ON TABLE blog_post TYPE string
   ASSERT string::is::url($value);
 DEFINE FIELD content_file ON TABLE blog_post TYPE record<file_id>;
-DEFINE FIELD other_images ON TABLE blog_post TYPE array<string>;
 DEFINE FIELD category ON TABLE blog_post TYPE string
 -- Allow only these values in the array
   ASSERT $value INSIDE ["WebDevelopment", "MobileDevelopment", "ArtificialIntelligence", "Technology", "Lifestyle"];

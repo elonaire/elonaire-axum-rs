@@ -12,16 +12,9 @@ pub struct BlogPostInput {
     pub status: Option<BlogStatus>,
     pub thumbnail: String,
     pub content_file: String,
-    pub other_images: Vec<String>,
     pub category: BlogCategory,
-    #[graphql(skip)]
-    pub link: String,
-    #[graphql(skip)]
-    pub published_date: Option<String>,
     pub is_featured: Option<bool>,
     pub is_premium: Option<bool>,
-    pub created_at: Option<String>,
-    pub updated_at: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
@@ -36,7 +29,6 @@ pub struct BlogPost {
     #[graphql(skip)]
     pub content_file: Option<Thing>,
     pub content: Option<String>,
-    pub other_images: Option<Vec<String>>,
     pub category: BlogCategory,
     pub link: String,
     pub published_date: Option<String>,
@@ -71,8 +63,6 @@ pub struct BlogPostUpdate {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content_file: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub other_images: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub category: Option<BlogCategory>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub link: Option<String>,
@@ -82,35 +72,6 @@ pub struct BlogPostUpdate {
     pub is_featured: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub is_premium: Option<bool>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
-#[graphql(complex)]
-pub struct BlogPostUpdateResponse {
-    #[graphql(skip)]
-    pub id: Option<Thing>,
-    pub title: String,
-    pub short_description: String,
-    pub status: Option<BlogStatus>,
-    pub thumbnail: String,
-    #[graphql(skip)]
-    pub content_file: Option<Thing>,
-    pub content: Option<String>,
-    pub other_images: Vec<String>,
-    pub category: BlogCategory,
-    pub link: String,
-    pub published_date: Option<String>,
-    pub is_featured: Option<bool>,
-    pub is_premium: Option<bool>,
-    pub created_at: Option<String>,
-    pub updated_at: Option<String>,
-}
-
-#[ComplexObject]
-impl BlogPostUpdateResponse {
-    async fn id(&self) -> String {
-        self.id.as_ref().map(|t| &t.id).expect("id").to_raw()
-    }
 }
 
 // enum for BlogCategory: "WebDevelopment", "MobileDevelopment", "AI", "Technology", "Lifestyle"

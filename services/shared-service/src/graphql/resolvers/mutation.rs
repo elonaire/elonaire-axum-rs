@@ -644,7 +644,6 @@ impl Mutation {
                 status: $blog_post_input.status,
                 thumbnail: $blog_post_input.thumbnail,
                 content_file: $content_file,
-                other_images: $blog_post_input.other_images,
                 category: $blog_post_input.category
             } RETURN AFTER)[0];
             RETURN $blog_post;
@@ -1175,7 +1174,7 @@ impl Mutation {
         ctx: &Context<'_>,
         blog_post: blog::BlogPostUpdate,
         blog_post_id: String,
-    ) -> async_graphql::Result<blog::BlogPostUpdateResponse> {
+    ) -> async_graphql::Result<blog::BlogPost> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .map_err(|e| {
@@ -1197,7 +1196,7 @@ impl Mutation {
 
         let _auth_res_from_acl = check_auth_from_acl(headers).await?;
 
-        let response: Option<blog::BlogPostUpdateResponse> = db
+        let response: Option<blog::BlogPost> = db
             .update(("blog_post", blog_post_id))
             .merge(blog_post)
             .await
