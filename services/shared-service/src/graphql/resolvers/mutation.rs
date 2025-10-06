@@ -31,19 +31,12 @@ impl Mutation {
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .map_err(|e| {
                 tracing::error!("Error extracting Surreal Client: {:?}", e);
-                ExtendedError::new(
-                    "Server Error",
-                    Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
-                )
-                .build()
+                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str())
+                    .build()
             })?;
         let headers = ctx.data::<HeaderMap>().map_err(|e| {
             tracing::error!("Error HeaderMap: {:?}", e);
-            ExtendedError::new(
-                "Server Error",
-                Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
-            )
-            .build()
+            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
         let auth_res_from_acl = check_auth_from_acl(headers).await?;
@@ -64,7 +57,7 @@ impl Mutation {
             tracing::error!("Failed to add user_id");
             return Err(ExtendedError::new(
                 "Something went wrong!",
-                Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+                StatusCode::INTERNAL_SERVER_ERROR.as_str(),
             )
             .build());
         }
@@ -91,7 +84,7 @@ impl Mutation {
             // Error::new("Internal Server Error.")
             ExtendedError::new(
                 "Failed",
-                Some(StatusCode::BAD_REQUEST.as_u16()),
+                StatusCode::BAD_REQUEST.as_str(),
             )
             .build()
         })?;
@@ -100,14 +93,12 @@ impl Mutation {
             tracing::debug!("Deserialization Failed: {}", e);
             tracing::debug!("database_transaction: {:?}", database_transaction);
             // Error::new("Internal Server Error.")
-            ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
+            ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
         })?;
 
         match response {
             Some(professional_info) => Ok(professional_info),
-            None => {
-                Err(ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build())
-            }
+            None => Err(ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()),
         }
 
         // Ok(response)
@@ -123,20 +114,13 @@ impl Mutation {
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .map_err(|e| {
                 tracing::error!("Error Surreal Client: {:?}", e);
-                ExtendedError::new(
-                    "Server Error",
-                    Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
-                )
-                .build()
+                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str())
+                    .build()
             })?;
 
         let headers = ctx.data::<HeaderMap>().map_err(|e| {
             tracing::error!("Error HeaderMap: {:?}", e);
-            ExtendedError::new(
-                "Server Error",
-                Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
-            )
-            .build()
+            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
         let auth_res_from_acl = check_auth_from_acl(headers).await?;
@@ -155,11 +139,9 @@ impl Mutation {
 
         if added_user_id.is_none() {
             tracing::error!("Failed to add user_id");
-            return Err(ExtendedError::new(
-                "Invalid Input Data",
-                Some(StatusCode::BAD_REQUEST.as_u16()),
-            )
-            .build());
+            return Err(
+                ExtendedError::new("Invalid Input Data", StatusCode::BAD_REQUEST.as_str()).build(),
+            );
         }
 
         let mut database_transaction = db
@@ -182,7 +164,7 @@ impl Mutation {
 
                 ExtendedError::new(
                     "Failed",
-                    Some(StatusCode::BAD_REQUEST.as_u16()),
+                    StatusCode::BAD_REQUEST.as_str(),
                 )
                 .build()
             })?;
@@ -190,14 +172,12 @@ impl Mutation {
         let response: Option<user::UserService> = database_transaction.take(0).map_err(|e| {
             tracing::error!("Deserialization Error: {:?}", e);
 
-            ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
+            ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
         })?;
 
         match response {
             Some(user_service) => Ok(user_service),
-            None => {
-                Err(ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build())
-            }
+            None => Err(ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()),
         }
 
         // Ok(response)
@@ -213,20 +193,13 @@ impl Mutation {
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .map_err(|e| {
                 tracing::error!("Error Surreal Client: {:?}", e);
-                ExtendedError::new(
-                    "Server Error",
-                    Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
-                )
-                .build()
+                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str())
+                    .build()
             })?;
 
         let headers = ctx.data::<HeaderMap>().map_err(|e| {
             tracing::error!("Error HeaderMap: {:?}", e);
-            ExtendedError::new(
-                "Server Error",
-                Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
-            )
-            .build()
+            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
         let auth_res_from_acl = check_auth_from_acl(headers).await?;
@@ -245,11 +218,9 @@ impl Mutation {
 
         if id_added.is_none() {
             tracing::error!("Failed to add user_id");
-            return Err(ExtendedError::new(
-                "Invalid Input Data",
-                Some(StatusCode::BAD_REQUEST.as_u16()),
-            )
-            .build());
+            return Err(
+                ExtendedError::new("Invalid Input Data", StatusCode::BAD_REQUEST.as_str()).build(),
+            );
         }
 
         let mut database_transaction = db
@@ -271,7 +242,7 @@ impl Mutation {
 
                 ExtendedError::new(
                     "Failed",
-                    Some(StatusCode::BAD_REQUEST.as_u16()),
+                    StatusCode::BAD_REQUEST.as_str(),
                 )
                 .build()
             })?;
@@ -279,14 +250,12 @@ impl Mutation {
         let response: Option<user::UserPortfolio> = database_transaction.take(0).map_err(|e| {
             tracing::error!("Deserialization Error: {:?}", e);
 
-            ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
+            ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
         })?;
 
         match response {
             Some(user_portfolio) => Ok(user_portfolio),
-            None => {
-                Err(ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build())
-            }
+            None => Err(ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()),
         }
 
         // Ok(response)
@@ -302,20 +271,13 @@ impl Mutation {
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .map_err(|e| {
                 tracing::error!("Error Surreal Client: {:?}", e);
-                ExtendedError::new(
-                    "Server Error",
-                    Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
-                )
-                .build()
+                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str())
+                    .build()
             })?;
 
         let headers = ctx.data::<HeaderMap>().map_err(|e| {
             tracing::error!("Error HeaderMap: {:?}", e);
-            ExtendedError::new(
-                "Server Error",
-                Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
-            )
-            .build()
+            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
         let auth_res_from_acl = check_auth_from_acl(headers).await?;
@@ -336,7 +298,7 @@ impl Mutation {
             tracing::debug!("Failed to add user_id");
             return Err(ExtendedError::new(
                 "Something went wrong",
-                Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+                StatusCode::INTERNAL_SERVER_ERROR.as_str(),
             )
             .build());
         }
@@ -361,7 +323,7 @@ impl Mutation {
 
                 ExtendedError::new(
                     "Failed",
-                    Some(StatusCode::BAD_REQUEST.as_u16()),
+                    StatusCode::BAD_REQUEST.as_str(),
                 )
                 .build()
             })?;
@@ -369,14 +331,12 @@ impl Mutation {
         let response: Option<user::UserResume> = database_transaction.take(0).map_err(|e| {
             tracing::error!("Deserialization Error: {:?}", e);
 
-            ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
+            ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
         })?;
 
         match response {
             Some(resume_item) => Ok(resume_item),
-            None => {
-                Err(ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build())
-            }
+            None => Err(ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()),
         }
 
         // Ok(response)
@@ -393,20 +353,13 @@ impl Mutation {
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .map_err(|e| {
                 tracing::error!("Error Surreal Client: {:?}", e);
-                ExtendedError::new(
-                    "Server Error",
-                    Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
-                )
-                .build()
+                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str())
+                    .build()
             })?;
 
         let headers = ctx.data::<HeaderMap>().map_err(|e| {
             tracing::error!("Error HeaderMap: {:?}", e);
-            ExtendedError::new(
-                "Server Error",
-                Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
-            )
-            .build()
+            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
         let auth_res_from_acl = check_auth_from_acl(headers).await?;
@@ -427,7 +380,7 @@ impl Mutation {
             tracing::error!("Failed to add user_id");
             return Err(ExtendedError::new(
                 "Something went wrong",
-                Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+                StatusCode::INTERNAL_SERVER_ERROR.as_str(),
             )
             .build());
         }
@@ -452,7 +405,7 @@ impl Mutation {
 
             ExtendedError::new(
                 "Failed",
-                Some(StatusCode::BAD_REQUEST.as_u16()),
+                StatusCode::BAD_REQUEST.as_str(),
             )
             .build()
         })?;
@@ -461,14 +414,12 @@ impl Mutation {
             database_transaction.take(0).map_err(|e| {
                 tracing::error!("Deserialization Error: {:?}", e);
 
-                ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
+                ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
             })?;
 
         match response {
             Some(resume_achievement) => Ok(resume_achievement),
-            None => {
-                Err(ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build())
-            }
+            None => Err(ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()),
         }
 
         // Ok(response)
@@ -484,20 +435,13 @@ impl Mutation {
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .map_err(|e| {
                 tracing::error!("Error Surreal Client: {:?}", e);
-                ExtendedError::new(
-                    "Server Error",
-                    Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
-                )
-                .build()
+                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str())
+                    .build()
             })?;
 
         let headers = ctx.data::<HeaderMap>().map_err(|e| {
             tracing::error!("Error HeaderMap: {:?}", e);
-            ExtendedError::new(
-                "Server Error",
-                Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
-            )
-            .build()
+            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
         let auth_res_from_acl = check_auth_from_acl(headers).await?;
@@ -518,7 +462,7 @@ impl Mutation {
             tracing::error!("Failed to add user_id");
             return Err(ExtendedError::new(
                 "Something went wrong",
-                Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+                StatusCode::INTERNAL_SERVER_ERROR.as_str(),
             )
             .build());
         }
@@ -541,20 +485,18 @@ impl Mutation {
             .map_err(|e| {
                 tracing::debug!("DB Query Error: {}", e);
 
-                ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
+                ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
             })?;
 
         let response: Option<user::UserSkill> = database_transaction.take(0).map_err(|e| {
             tracing::error!("Deserialization Error: {:?}", e);
 
-            ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
+            ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
         })?;
 
         match response {
             Some(user_skill) => Ok(user_skill),
-            None => {
-                Err(ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build())
-            }
+            None => Err(ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()),
         }
 
         // Ok(response)
@@ -570,20 +512,13 @@ impl Mutation {
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .map_err(|e| {
                 tracing::error!("Error Surreal Client: {:?}", e);
-                ExtendedError::new(
-                    "Server Error",
-                    Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
-                )
-                .build()
+                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str())
+                    .build()
             })?;
 
         let headers = ctx.data::<HeaderMap>().map_err(|e| {
             tracing::error!("Error HeaderMap: {:?}", e);
-            ExtendedError::new(
-                "Server Error",
-                Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
-            )
-            .build()
+            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
         let auth_res_from_acl = check_auth_from_acl(headers).await?;
@@ -609,7 +544,7 @@ impl Mutation {
             tracing::error!("Failed to add user_id");
             ExtendedError::new(
                 "Something went wrong",
-                Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+                StatusCode::INTERNAL_SERVER_ERROR.as_str(),
             )
             .build()
         })?;
@@ -623,7 +558,7 @@ impl Mutation {
             tracing::error!("Failed to add content_file");
             ExtendedError::new(
                 "Something went wrong",
-                Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+                StatusCode::INTERNAL_SERVER_ERROR.as_str(),
             )
             .build()
         })?;
@@ -657,14 +592,12 @@ impl Mutation {
         let response: Option<blog::BlogPost> = database_transaction.take(0).map_err(|e| {
             tracing::error!("Deserialization Error: {:?}", e);
 
-            ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
+            ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
         })?;
 
         match response {
             Some(blog_post) => Ok(blog_post),
-            None => {
-                Err(ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build())
-            }
+            None => Err(ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()),
         }
     }
 
@@ -680,20 +613,13 @@ impl Mutation {
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .map_err(|e| {
                 tracing::error!("Error Surreal Client: {:?}", e);
-                ExtendedError::new(
-                    "Server Error",
-                    Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
-                )
-                .build()
+                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str())
+                    .build()
             })?;
 
         let headers = ctx.data::<HeaderMap>().map_err(|e| {
             tracing::error!("Error HeaderMap: {:?}", e);
-            ExtendedError::new(
-                "Server Error",
-                Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
-            )
-            .build()
+            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
         let auth_res_from_acl = check_auth_from_acl(headers).await?;
@@ -714,7 +640,7 @@ impl Mutation {
             tracing::error!("Failed to add user_id");
             return Err(ExtendedError::new(
                 "Something went wrong",
-                Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+                StatusCode::INTERNAL_SERVER_ERROR.as_str(),
             )
             .build());
         }
@@ -750,7 +676,7 @@ impl Mutation {
 
             ExtendedError::new(
                 "Failed",
-                Some(StatusCode::BAD_REQUEST.as_u16()),
+                StatusCode::BAD_REQUEST.as_str(),
             )
             .build()
         })?;
@@ -758,14 +684,12 @@ impl Mutation {
         let response: Option<blog::BlogComment> = database_transaction.take(0).map_err(|e| {
             tracing::error!("Deserialization Error: {:?}", e);
 
-            ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
+            ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
         })?;
 
         match response {
             Some(blog_comment) => Ok(blog_comment),
-            None => {
-                Err(ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build())
-            }
+            None => Err(ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()),
         }
     }
 
@@ -780,20 +704,13 @@ impl Mutation {
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .map_err(|e| {
                 tracing::error!("Error Surreal Client: {:?}", e);
-                ExtendedError::new(
-                    "Server Error",
-                    Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
-                )
-                .build()
+                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str())
+                    .build()
             })?;
 
         let headers = ctx.data::<HeaderMap>().map_err(|e| {
             tracing::error!("Error HeaderMap: {:?}", e);
-            ExtendedError::new(
-                "Server Error",
-                Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
-            )
-            .build()
+            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
         let auth_res_from_acl = check_auth_from_acl(headers).await?;
@@ -814,7 +731,7 @@ impl Mutation {
             tracing::error!("Failed to add user_id");
             return Err(ExtendedError::new(
                 "Something went wrong",
-                Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+                StatusCode::INTERNAL_SERVER_ERROR.as_str(),
             )
             .build());
         }
@@ -850,7 +767,7 @@ impl Mutation {
 
             ExtendedError::new(
                 "Failed",
-                Some(StatusCode::BAD_REQUEST.as_u16()),
+                StatusCode::BAD_REQUEST.as_str(),
             )
             .build()
         })?;
@@ -858,14 +775,12 @@ impl Mutation {
         let response: Option<blog::BlogComment> = database_transaction.take(0).map_err(|e| {
             tracing::error!("Deserialization Error: {:?}", e);
 
-            ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
+            ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
         })?;
 
         match response {
             Some(blog_comment) => Ok(blog_comment),
-            None => {
-                Err(ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build())
-            }
+            None => Err(ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()),
         }
     }
 
@@ -880,20 +795,13 @@ impl Mutation {
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .map_err(|e| {
                 tracing::error!("Error Surreal Client: {:?}", e);
-                ExtendedError::new(
-                    "Server Error",
-                    Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
-                )
-                .build()
+                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str())
+                    .build()
             })?;
 
         let headers = ctx.data::<HeaderMap>().map_err(|e| {
             tracing::error!("Error HeaderMap: {:?}", e);
-            ExtendedError::new(
-                "Server Error",
-                Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
-            )
-            .build()
+            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
         let auth_res_from_acl = check_auth_from_acl(headers).await?;
@@ -914,7 +822,7 @@ impl Mutation {
             tracing::error!("Failed to add user_id");
             return Err(ExtendedError::new(
                 "Something went wrong",
-                Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+                StatusCode::INTERNAL_SERVER_ERROR.as_str(),
             )
             .build());
         }
@@ -946,7 +854,7 @@ impl Mutation {
 
             ExtendedError::new(
                 "Failed",
-                Some(StatusCode::BAD_REQUEST.as_u16()),
+                StatusCode::BAD_REQUEST.as_str(),
             )
             .build()
         })?;
@@ -954,14 +862,12 @@ impl Mutation {
         let response: Option<shared::Reaction> = database_transaction.take(0).map_err(|e| {
             tracing::error!("Deserialization Error: {:?}", e);
 
-            ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
+            ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
         })?;
 
         match response {
             Some(resume_item) => Ok(resume_item),
-            None => {
-                Err(ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build())
-            }
+            None => Err(ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()),
         }
     }
 
@@ -976,20 +882,13 @@ impl Mutation {
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .map_err(|e| {
                 tracing::error!("Error Surreal Client: {:?}", e);
-                ExtendedError::new(
-                    "Server Error",
-                    Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
-                )
-                .build()
+                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str())
+                    .build()
             })?;
 
         let headers = ctx.data::<HeaderMap>().map_err(|e| {
             tracing::error!("Error HeaderMap: {:?}", e);
-            ExtendedError::new(
-                "Server Error",
-                Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
-            )
-            .build()
+            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
         let auth_res_from_acl = check_auth_from_acl(headers).await?;
@@ -1010,7 +909,7 @@ impl Mutation {
             tracing::error!("Failed to add user_id");
             return Err(ExtendedError::new(
                 "Something went wrong",
-                Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+                StatusCode::INTERNAL_SERVER_ERROR.as_str(),
             )
             .build());
         }
@@ -1041,7 +940,7 @@ impl Mutation {
 
             ExtendedError::new(
                 "Failed",
-                Some(StatusCode::BAD_REQUEST.as_u16()),
+                StatusCode::BAD_REQUEST.as_str(),
             )
             .build()
         })?;
@@ -1049,14 +948,12 @@ impl Mutation {
         let response: Option<shared::Reaction> = database_transaction.take(0).map_err(|e| {
             tracing::error!("Deserialization Error: {:?}", e);
 
-            ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
+            ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
         })?;
 
         match response {
             Some(reaction) => Ok(reaction),
-            None => {
-                Err(ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build())
-            }
+            None => Err(ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()),
         }
     }
 
@@ -1070,25 +967,20 @@ impl Mutation {
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .map_err(|e| {
                 tracing::error!("Error Surreal Client: {:?}", e);
-                ExtendedError::new(
-                    "Server Error",
-                    Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
-                )
-                .build()
+                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str())
+                    .build()
             })?;
 
         let message: Option<shared::Message> =
             db.create("message").content(message).await.map_err(|e| {
                 tracing::error!("Deserialization Error: {:?}", e);
 
-                ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
+                ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
             })?;
 
         match message {
             Some(message) => Ok(message),
-            None => {
-                Err(ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build())
-            }
+            None => Err(ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()),
         }
     }
 
@@ -1103,19 +995,12 @@ impl Mutation {
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .map_err(|e| {
                 tracing::error!("Error Surreal Client: {:?}", e);
-                ExtendedError::new(
-                    "Server Error",
-                    Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
-                )
-                .build()
+                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str())
+                    .build()
             })?;
         let headers = ctx.data::<HeaderMap>().map_err(|e| {
             tracing::error!("Error HeaderMap: {:?}", e);
-            ExtendedError::new(
-                "Server Error",
-                Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
-            )
-            .build()
+            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
         let _auth_res_from_acl = check_auth_from_acl(headers).await?;
@@ -1147,19 +1032,17 @@ impl Mutation {
             .map_err(|e| {
                 tracing::debug!("DB Query Error: {}", e);
 
-                ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
+                ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
             })?;
 
         let response: Option<user::UserSkill> = database_transaction.take(0).map_err(|e| {
             tracing::error!("Deserialization Error: {:?}", e);
-            ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
+            ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
         })?;
 
         match response {
             Some(user_skill) => Ok(user_skill),
-            None => {
-                Err(ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build())
-            }
+            None => Err(ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()),
         }
     }
 
@@ -1173,19 +1056,12 @@ impl Mutation {
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .map_err(|e| {
                 tracing::error!("Error Surreal Client: {:?}", e);
-                ExtendedError::new(
-                    "Server Error",
-                    Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
-                )
-                .build()
+                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str())
+                    .build()
             })?;
         let headers = ctx.data::<HeaderMap>().map_err(|e| {
             tracing::error!("Error HeaderMap: {:?}", e);
-            ExtendedError::new(
-                "Server Error",
-                Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
-            )
-            .build()
+            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
         let _auth_res_from_acl = check_auth_from_acl(headers).await?;
@@ -1197,16 +1073,14 @@ impl Mutation {
             .map_err(|e| {
                 tracing::error!("Deserialization Error: {:?}", e);
 
-                ExtendedError::new("Failed", Some(StatusCode::BAD_REQUEST.as_u16())).build()
+                ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
             })?;
 
         match response {
             Some(blog_post) => Ok(blog_post),
-            None => Err(ExtendedError::new(
-                "Blog post not found",
-                Some(StatusCode::NOT_FOUND.as_u16()),
-            )
-            .build()),
+            None => Err(
+                ExtendedError::new("Blog post not found", StatusCode::NOT_FOUND.as_str()).build(),
+            ),
         }
     }
 }

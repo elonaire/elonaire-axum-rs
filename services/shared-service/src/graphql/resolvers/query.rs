@@ -40,11 +40,8 @@ impl Query {
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .map_err(|e| {
                 tracing::error!("Error Surreal Client: {:?}", e);
-                ExtendedError::new(
-                    "Server Error",
-                    Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
-                )
-                .build()
+                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str())
+                    .build()
             })?;
 
         let mut query_result = db
@@ -76,11 +73,8 @@ impl Query {
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .map_err(|e| {
                 tracing::error!("Error Surreal Client: {:?}", e);
-                ExtendedError::new(
-                    "Server Error",
-                    Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
-                )
-                .build()
+                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str())
+                    .build()
             })?;
 
         let mut user_query_result = db
@@ -166,15 +160,12 @@ impl Query {
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .map_err(|e| {
                 tracing::error!("Error Surreal Client: {:?}", e);
-                ExtendedError::new(
-                    "Server Error",
-                    Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
-                )
-                .build()
+                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str())
+                    .build()
             })?;
 
         let headers = ctx.data_opt::<HeaderMap>().ok_or_else(|| {
-            ExtendedError::new("Unauthorized", Some(StatusCode::UNAUTHORIZED.as_u16())).build()
+            ExtendedError::new("Unauthorized", StatusCode::UNAUTHORIZED.as_str()).build()
         })?;
 
         let mut blog_post_db_query = db
@@ -193,7 +184,7 @@ impl Query {
                 tracing::debug!("DB Query error: {}", e);
                 ExtendedError::new(
                     "Server Error",
-                    Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
+                    StatusCode::INTERNAL_SERVER_ERROR.as_str(),
                 )
                 .build()
             })?;
@@ -201,11 +192,9 @@ impl Query {
         let blog_post: Option<BlogPost> = blog_post_db_query.take(0)?;
 
         if blog_post.is_none() {
-            return Err(ExtendedError::new(
-                "Blog post not found",
-                Some(StatusCode::NOT_FOUND.as_u16()),
-            )
-            .build());
+            return Err(
+                ExtendedError::new("Blog post not found", StatusCode::NOT_FOUND.as_str()).build(),
+            );
         }
 
         let mut blog_post = blog_post.unwrap();
@@ -220,21 +209,16 @@ impl Query {
             .await
             .map_err(|e| {
                 tracing::debug!("DB Query error: {}", e);
-                ExtendedError::new(
-                    "Server Error",
-                    Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
-                )
-                .build()
+                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str())
+                    .build()
             })?;
 
         let uploaded_file: Option<UploadedFile> = file_id_db_query.take(0)?;
 
         if uploaded_file.is_none() {
-            return Err(ExtendedError::new(
-                "Content not found",
-                Some(StatusCode::NOT_FOUND.as_u16()),
-            )
-            .build());
+            return Err(
+                ExtendedError::new("Content not found", StatusCode::NOT_FOUND.as_str()).build(),
+            );
         }
 
         let mut request = tonic::Request::new(FileId {
@@ -252,11 +236,7 @@ impl Query {
 
         let files_service_grpc = env::var("FILES_SERVICE_GRPC").map_err(|e| {
             tracing::debug!("Missing FILES_SERVICE_GRPC environment variable: {}", e);
-            ExtendedError::new(
-                "Server Error",
-                Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
-            )
-            .build()
+            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
         let blog_content = if let Ok(mut files_grpc_client) =
@@ -271,7 +251,7 @@ impl Query {
                 // Error::new("Failed to connect to Files service".to_string())
                 ExtendedError::new(
                     "Failed to connect to Files service",
-                    Some(StatusCode::BAD_REQUEST.as_u16()),
+                    StatusCode::BAD_REQUEST.as_str(),
                 )
                 .build()
             }) {
@@ -282,11 +262,8 @@ impl Query {
                 let base_url = std::env::var("FILES_SERVICE").map_err(|e| {
                     tracing::error!("FILES_SERVICE environment variable not set: {}", e);
 
-                    ExtendedError::new(
-                        "Server Error",
-                        Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
-                    )
-                    .build()
+                    ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str())
+                        .build()
                 })?;
                 let url = format!("{}/view/{}", base_url, file_name);
 
@@ -323,20 +300,13 @@ impl Query {
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .map_err(|e| {
                 tracing::error!("Error Surreal Client: {:?}", e);
-                ExtendedError::new(
-                    "Server Error",
-                    Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
-                )
-                .build()
+                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str())
+                    .build()
             })?;
 
         let headers = ctx.data::<HeaderMap>().map_err(|e| {
             tracing::error!("Error HeaderMap: {:?}", e);
-            ExtendedError::new(
-                "Server Error",
-                Some(StatusCode::INTERNAL_SERVER_ERROR.as_u16()),
-            )
-            .build()
+            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
         let _auth_res_from_acl = check_auth_from_acl(headers).await?;
