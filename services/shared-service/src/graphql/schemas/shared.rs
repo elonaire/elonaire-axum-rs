@@ -1,14 +1,18 @@
 use async_graphql::{ComplexObject, Enum, InputObject, SimpleObject};
 use serde::{Deserialize, Serialize};
-use surrealdb::sql::Thing;
+use surrealdb::RecordId;
 
 // Reaction
-#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject, InputObject)]
-#[graphql(input_name = "ReactionInput")]
+#[derive(Clone, Debug, Serialize, Deserialize, InputObject)]
+pub struct ReactionInput {
+    pub r#type: ReactionType,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
 #[graphql(complex)]
 pub struct Reaction {
     #[graphql(skip)]
-    pub id: Option<Thing>,
+    pub id: RecordId,
     pub r#type: ReactionType,
 }
 
@@ -34,16 +38,24 @@ pub enum ReactionType {
 #[ComplexObject]
 impl Reaction {
     async fn id(&self) -> String {
-        self.id.as_ref().map(|t| &t.id).expect("id").to_raw()
+        self.id.key().to_string()
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject, InputObject)]
-#[graphql(input_name = "MessageInput")]
+#[derive(Clone, Debug, Serialize, Deserialize, InputObject)]
+pub struct MessageInput {
+    pub subject: Subject,
+    pub body: String,
+    pub sender_name: String,
+    pub sender_email: String,
+    pub created_at: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
 #[graphql(complex)]
 pub struct Message {
     #[graphql(skip)]
-    pub id: Option<Thing>,
+    pub id: RecordId,
     pub subject: Subject,
     pub body: String,
     pub sender_name: String,
@@ -70,6 +82,6 @@ pub enum Subject {
 #[ComplexObject]
 impl Message {
     async fn id(&self) -> String {
-        self.id.as_ref().map(|t| &t.id).expect("id").to_raw()
+        self.id.key().to_string()
     }
 }

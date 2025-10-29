@@ -1,12 +1,10 @@
 use async_graphql::{ComplexObject, Enum, InputObject, SimpleObject};
 
 use serde::{Deserialize, Serialize};
-use surrealdb::sql::{Datetime, Thing};
+use surrealdb::{sql::Datetime, RecordId};
 
 #[derive(Clone, Debug, Serialize, Deserialize, InputObject)]
 pub struct BlogPostInput {
-    #[graphql(skip)]
-    pub id: Option<Thing>,
     pub title: String,
     pub short_description: String,
     pub status: Option<BlogStatus>,
@@ -21,13 +19,13 @@ pub struct BlogPostInput {
 #[graphql(complex)]
 pub struct BlogPost {
     #[graphql(skip)]
-    pub id: Option<Thing>,
+    pub id: RecordId,
     pub title: String,
     pub short_description: String,
     pub status: Option<BlogStatus>,
     pub thumbnail: String,
     #[graphql(skip)]
-    pub content_file: Option<Thing>,
+    pub content_file: RecordId,
     pub content: Option<String>,
     pub category: BlogCategory,
     pub link: String,
@@ -102,12 +100,16 @@ impl BlogCategory {
 }
 
 // BlogComment
-#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject, InputObject)]
-#[graphql(input_name = "BlogCommentInput")]
+#[derive(Clone, Debug, Serialize, Deserialize, InputObject)]
+pub struct BlogCommentInput {
+    pub content: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
 #[graphql(complex)]
 pub struct BlogComment {
     #[graphql(skip)]
-    pub id: Option<Thing>,
+    pub id: RecordId,
     pub content: String,
     #[graphql(skip)]
     pub created_at: Datetime,
@@ -116,21 +118,17 @@ pub struct BlogComment {
 #[ComplexObject]
 impl BlogPost {
     async fn id(&self) -> String {
-        self.id.as_ref().map(|t| &t.id).expect("id").to_raw()
+        self.id.key().to_string()
     }
 
     async fn content_file(&self) -> String {
-        self.content_file
-            .as_ref()
-            .map(|t| &t.id)
-            .expect("content_file")
-            .to_raw()
+        self.content_file.key().to_string()
     }
 }
 
 #[ComplexObject]
 impl BlogComment {
     async fn id(&self) -> String {
-        self.id.as_ref().map(|t| &t.id).expect("id").to_raw()
+        self.id.key().to_string()
     }
 }

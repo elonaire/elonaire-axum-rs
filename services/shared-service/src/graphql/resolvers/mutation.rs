@@ -12,7 +12,7 @@ use lib::{
 };
 use surrealdb::{engine::remote::ws::Client as SurrealClient, Surreal};
 
-use crate::graphql::schemas::user::UserProfessionalInfo;
+use crate::graphql::schemas::user::{UserProfessionalInfo, UserProfessionalInfoInput};
 use crate::graphql::schemas::{blog, shared, user};
 
 // const CHUNK_SIZE: u64 = 1024 * 1024 * 5; // 5MB
@@ -25,7 +25,7 @@ impl Mutation {
     async fn create_professional_details(
         &self,
         ctx: &Context<'_>,
-        professional_details: UserProfessionalInfo,
+        professional_details: UserProfessionalInfoInput,
     ) -> async_graphql::Result<UserProfessionalInfo> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
@@ -62,9 +62,6 @@ impl Mutation {
             .build());
         }
 
-        tracing::debug!("professional_details: {:?}", professional_details);
-        tracing::debug!("user_id: {:?}", auth_res_from_acl.sub);
-
         let mut database_transaction = db
         .query(
             "
@@ -91,8 +88,6 @@ impl Mutation {
 
         let response: Option<UserProfessionalInfo> = database_transaction.take(0).map_err(|e| {
             tracing::debug!("Deserialization Failed: {}", e);
-            tracing::debug!("database_transaction: {:?}", database_transaction);
-            // Error::new("Internal Server Error.")
             ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
         })?;
 
@@ -100,8 +95,6 @@ impl Mutation {
             Some(professional_info) => Ok(professional_info),
             None => Err(ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()),
         }
-
-        // Ok(response)
     }
 
     /// Create a new user service
@@ -179,8 +172,6 @@ impl Mutation {
             Some(user_service) => Ok(user_service),
             None => Err(ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()),
         }
-
-        // Ok(response)
     }
 
     /// Create a new user project/portfolio item
@@ -257,8 +248,6 @@ impl Mutation {
             Some(user_portfolio) => Ok(user_portfolio),
             None => Err(ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()),
         }
-
-        // Ok(response)
     }
 
     /// Create a new user resume item
@@ -338,15 +327,13 @@ impl Mutation {
             Some(resume_item) => Ok(resume_item),
             None => Err(ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()),
         }
-
-        // Ok(response)
     }
 
     /// Create a new user resume item achievement
     pub async fn create_resume_item_achievement(
         &self,
         ctx: &Context<'_>,
-        resume_item_achievement: user::ResumeAchievement,
+        resume_item_achievement: user::ResumeAchievementInput,
         resume_id: String,
     ) -> async_graphql::Result<user::ResumeAchievement> {
         let db = ctx
@@ -421,8 +408,6 @@ impl Mutation {
             Some(resume_achievement) => Ok(resume_achievement),
             None => Err(ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()),
         }
-
-        // Ok(response)
     }
 
     /// Create a new user skill
@@ -498,8 +483,6 @@ impl Mutation {
             Some(user_skill) => Ok(user_skill),
             None => Err(ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()),
         }
-
-        // Ok(response)
     }
 
     /// Create a new blog post
@@ -563,10 +546,7 @@ impl Mutation {
             .build()
         })?;
 
-        blog_post.content_file = format!(
-            "file_id:{}",
-            added_file.id.as_ref().map(|t| &t.id).expect("id").to_raw()
-        );
+        blog_post.content_file = format!("file_id:{}", added_file.id.key().to_string());
 
         let mut database_transaction = db
             .query(
@@ -605,7 +585,7 @@ impl Mutation {
     pub async fn add_comment_to_blog_post(
         &self,
         ctx: &Context<'_>,
-        blog_comment: blog::BlogComment,
+        blog_comment: blog::BlogCommentInput,
         blog_post_id: String,
     ) -> async_graphql::Result<blog::BlogComment> {
         // TODO: Might have to allow anonymous comments?
@@ -697,7 +677,7 @@ impl Mutation {
     pub async fn reply_to_a_comment(
         &self,
         ctx: &Context<'_>,
-        blog_comment: blog::BlogComment,
+        blog_comment: blog::BlogCommentInput,
         comment_id: String,
     ) -> async_graphql::Result<blog::BlogComment> {
         let db = ctx
@@ -788,7 +768,7 @@ impl Mutation {
     pub async fn react_to_blog_post(
         &self,
         ctx: &Context<'_>,
-        reaction: shared::Reaction,
+        reaction: shared::ReactionInput,
         blog_post_id: String,
     ) -> async_graphql::Result<shared::Reaction> {
         let db = ctx
@@ -875,7 +855,7 @@ impl Mutation {
     pub async fn react_to_blog_comment(
         &self,
         ctx: &Context<'_>,
-        reaction: shared::Reaction,
+        reaction: shared::ReactionInput,
         comment_id: String,
     ) -> async_graphql::Result<shared::Reaction> {
         let db = ctx
@@ -961,7 +941,7 @@ impl Mutation {
     pub async fn send_message(
         &self,
         ctx: &Context<'_>,
-        message: shared::Message,
+        message: shared::MessageInput,
     ) -> async_graphql::Result<shared::Message> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()

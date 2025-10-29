@@ -1,5 +1,7 @@
 use crate::{
-    integration::grpc::clients::acl_service::{acl_client::AclClient, Empty},
+    integration::grpc::clients::acl_service::{
+        acl_client::AclClient, ConfirmAuthenticationRequest,
+    },
     utils::{
         auth::AuthStatus,
         grpc::{create_grpc_client, AuthMetaData},
@@ -22,9 +24,9 @@ pub async fn check_auth_from_acl(headers: &HeaderMap) -> Result<AuthStatus, Erro
     let auth_header = headers.get(AUTHORIZATION);
     let cookie_header = headers.get(COOKIE);
 
-    let mut request = tonic::Request::new(Empty {});
+    let mut request = tonic::Request::new(ConfirmAuthenticationRequest {});
 
-    let auth_metadata: AuthMetaData<Empty> = AuthMetaData {
+    let auth_metadata: AuthMetaData<ConfirmAuthenticationRequest> = AuthMetaData {
         auth_header,
         cookie_header,
         constructed_grpc_request: Some(&mut request),
@@ -38,16 +40,17 @@ pub async fn check_auth_from_acl(headers: &HeaderMap) -> Result<AuthStatus, Erro
         Error::new(ErrorKind::Other, "Server Error")
     })?;
 
-    let mut acl_grpc_client = create_grpc_client::<Empty, AclClient<Channel>>(
-        &acl_service_grpc,
-        true,
-        Some(auth_metadata),
-    )
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to connect to ACL service: {}", e);
-        Error::new(ErrorKind::Other, "Failed to connect to ACL service")
-    })?;
+    let mut acl_grpc_client =
+        create_grpc_client::<ConfirmAuthenticationRequest, AclClient<Channel>>(
+            &acl_service_grpc,
+            true,
+            Some(auth_metadata),
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to connect to ACL service: {}", e);
+            Error::new(ErrorKind::Other, "Failed to connect to ACL service")
+        })?;
 
     let response = acl_grpc_client.confirm_authentication(request).await;
 

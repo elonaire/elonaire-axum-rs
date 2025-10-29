@@ -1,16 +1,23 @@
 use async_graphql::{ComplexObject, Enum, InputObject, SimpleObject};
 use chrono::{DateTime, Datelike, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
-use surrealdb::sql::Thing;
+use surrealdb::RecordId;
 
 use super::blog::BlogPost;
 
-#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject, InputObject)]
-#[graphql(input_name = "UserProfessionalInfoInput")]
+#[derive(Clone, Debug, Serialize, Deserialize, InputObject)]
+pub struct UserProfessionalInfoInput {
+    pub description: String,
+    pub active: bool,
+    pub occupation: String,
+    pub start_date: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
 #[graphql(complex)]
 pub struct UserProfessionalInfo {
     #[graphql(skip)]
-    pub id: Option<Thing>,
+    pub id: RecordId,
     pub description: String,
     pub active: bool,
     pub occupation: String,
@@ -32,7 +39,7 @@ pub struct UserPortfolioInput {
 #[graphql(complex)]
 pub struct UserPortfolio {
     #[graphql(skip)]
-    pub id: Option<Thing>,
+    pub id: RecordId,
     pub title: String,
     pub description: String,
     pub start_date: String,
@@ -63,7 +70,7 @@ pub enum UserPortfolioCategory {
 #[ComplexObject]
 impl UserPortfolio {
     async fn id(&self) -> String {
-        self.id.as_ref().map(|t| &t.id).expect("id").to_raw()
+        self.id.key().to_string()
     }
 
     async fn years_of_experience(&self) -> Option<u32> {
@@ -109,7 +116,7 @@ pub struct UserResumeInput {
 #[graphql(complex)]
 pub struct UserResume {
     #[graphql(skip)]
-    pub id: Option<Thing>,
+    pub id: RecordId,
     pub title: String,
     pub more_info: Option<String>,
     pub start_date: String,
@@ -122,7 +129,7 @@ pub struct UserResume {
 #[ComplexObject]
 impl UserResume {
     async fn id(&self) -> String {
-        self.id.as_ref().map(|t| &t.id).expect("id").to_raw()
+        self.id.key().to_string()
     }
 
     async fn years_of_experience(&self) -> Option<u32> {
@@ -178,19 +185,23 @@ pub enum UserResumeSection {
     References,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject, InputObject)]
-#[graphql(input_name = "ResumeAchievementInput")]
+#[derive(Clone, Debug, Serialize, Deserialize, InputObject)]
+pub struct ResumeAchievementInput {
+    pub description: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
 #[graphql(complex)]
 pub struct ResumeAchievement {
     #[graphql(skip)]
-    pub id: Option<Thing>,
+    pub id: RecordId,
     pub description: String,
 }
 
 #[ComplexObject]
 impl ResumeAchievement {
     async fn id(&self) -> String {
-        self.id.as_ref().map(|t| &t.id).expect("id").to_raw()
+        self.id.key().to_string()
     }
 }
 
@@ -208,7 +219,7 @@ pub struct UserSkillInput {
 #[graphql(complex)]
 pub struct UserSkill {
     #[graphql(skip)]
-    pub id: Option<Thing>,
+    pub id: RecordId,
     pub thumbnail: String,
     pub name: String,
     pub level: Option<UserSkillLevel>,
@@ -219,7 +230,7 @@ pub struct UserSkill {
 #[ComplexObject]
 impl UserSkill {
     async fn id(&self) -> String {
-        self.id.as_ref().map(|t| &t.id).expect("id").to_raw()
+        self.id.key().to_string()
     }
 }
 
@@ -257,7 +268,7 @@ pub struct UserServiceInput {
 #[graphql(complex)]
 pub struct UserService {
     #[graphql(skip)]
-    pub id: Option<Thing>,
+    pub id: RecordId,
     pub title: String,
     pub description: String,
     pub thumbnail: String,
@@ -266,7 +277,7 @@ pub struct UserService {
 #[ComplexObject]
 impl UserService {
     async fn id(&self) -> String {
-        self.id.as_ref().map(|t| &t.id).expect("id").to_raw()
+        self.id.key().to_string()
     }
 }
 
@@ -283,7 +294,7 @@ pub struct UserResources {
 #[ComplexObject]
 impl UserProfessionalInfo {
     async fn id(&self) -> String {
-        self.id.as_ref().map(|t| &t.id).expect("id").to_raw()
+        self.id.key().to_string()
     }
 
     async fn years_of_experience(&self) -> Option<u32> {
@@ -303,6 +314,6 @@ impl UserProfessionalInfo {
 #[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
 pub struct User {
     #[graphql(skip)]
-    pub id: Option<Thing>,
+    pub id: RecordId,
     pub user_id: String,
 }

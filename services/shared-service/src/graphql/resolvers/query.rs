@@ -17,7 +17,9 @@ use crate::graphql::schemas::{
 };
 
 use lib::{
-    integration::grpc::clients::files_service::{files_service_client::FilesServiceClient, FileId},
+    integration::grpc::clients::files_service::{
+        files_service_client::FilesServiceClient, FetchFileNameRequest,
+    },
     middleware::auth::graphql::check_auth_from_acl,
     utils::{
         custom_error::ExtendedError,
@@ -45,7 +47,6 @@ impl Query {
             })?;
 
         let mut query_result = db
-            // .select("blog_post")
             .query("SELECT *, ->has_comment->comment[*] AS comments FROM blog_post WHERE status = $status")
             .bind(("status", status))
             .await
@@ -56,7 +57,7 @@ impl Query {
 
         let result: Vec<blog::BlogPost> = query_result.take(0).map_err(|e| {
             tracing::debug!("blog_posts deserialization error: {}", e);
-            Error::new("Internal Server Error".to_string())
+            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
         Ok(result)
@@ -98,7 +99,7 @@ impl Query {
                         "internal_user_id",
                         format!(
                             "user_id:{}",
-                            user.id.as_ref().map(|t| &t.id).expect("id").to_raw()
+                            user.id.key().to_string()
                         ),
                     ))
                     .bind(("external_user_id", user.user_id))
@@ -221,14 +222,14 @@ impl Query {
             );
         }
 
-        let mut request = tonic::Request::new(FileId {
+        let mut request = tonic::Request::new(FetchFileNameRequest {
             file_id: uploaded_file.unwrap().file_id,
         });
 
         let auth_header = headers.get(AUTHORIZATION);
         let cookie_header = headers.get(COOKIE);
 
-        let auth_metadata: AuthMetaData<FileId> = AuthMetaData {
+        let auth_metadata: AuthMetaData<FetchFileNameRequest> = AuthMetaData {
             auth_header,
             cookie_header,
             constructed_grpc_request: Some(&mut request),
@@ -239,56 +240,49 @@ impl Query {
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
-        let blog_content = if let Ok(mut files_grpc_client) =
-            create_grpc_client::<FileId, FilesServiceClient<Channel>>(
-                &files_service_grpc,
-                true,
-                Some(auth_metadata),
-            )
+        let mut files_grpc_client = create_grpc_client::<
+            FetchFileNameRequest,
+            FilesServiceClient<Channel>,
+        >(&files_service_grpc, true, Some(auth_metadata))
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to connect to Files service: {}", e);
+            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
+        })?;
+
+        let res = files_grpc_client
+            .fetch_file_name(request)
             .await
             .map_err(|e| {
-                tracing::error!("Failed to connect to Files service: {}", e);
-                // Error::new("Failed to connect to Files service".to_string())
-                ExtendedError::new(
-                    "Failed to connect to Files service",
-                    StatusCode::BAD_REQUEST.as_str(),
-                )
-                .build()
-            }) {
-            if let Ok(res) = files_grpc_client.get_file_name(request).await {
-                tracing::debug!("files_grpc_client res: {:?}", res);
-                let file_name: String = res.into_inner().file_name;
+                tracing::error!("Failed to fetch file name from Files service: {}", e);
+                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str())
+                    .build()
+            })?;
 
-                let base_url = std::env::var("FILES_SERVICE").map_err(|e| {
-                    tracing::error!("FILES_SERVICE environment variable not set: {}", e);
+        let file_name: String = res.into_inner().file_name;
 
-                    ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str())
-                        .build()
-                })?;
-                let url = format!("{}/view/{}", base_url, file_name);
+        let base_url = std::env::var("FILES_SERVICE").map_err(|e| {
+            tracing::error!("FILES_SERVICE environment variable not set: {}", e);
 
-                // Create an HTTP client
-                let client = Client::new();
+            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
+        })?;
+        let url = format!("{}/view/{}", base_url, file_name);
 
-                // Fetch the content from the URL
-                if let Ok(text) = client.get(&url).send().await {
-                    if let Ok(content) = text.text().await {
-                        let html_content = markdown::to_html(&content);
-                        Some(html_content)
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        } else {
-            None
-        };
+        // Create an HTTP client
+        let client = Client::new();
 
-        blog_post.content = blog_content;
+        // Fetch the content from the URL
+        let text = client.get(&url).send().await.map_err(|e| {
+            tracing::error!("Failed to connect to Files service: {}", e);
+            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
+        })?;
+        let content = text.text().await.map_err(|e| {
+            tracing::error!("Failed to parse response from Files service: {}", e);
+            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
+        })?;
+        let blog_content = markdown::to_html(&content);
+
+        blog_post.content = Some(blog_content);
         Ok(blog_post)
     }
 
