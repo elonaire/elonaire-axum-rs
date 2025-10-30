@@ -11,7 +11,7 @@ DEFINE FIELD file_id ON TABLE file_id TYPE string;
 DEFINE INDEX fileIndex ON TABLE file_id COLUMNS file_id UNIQUE;
 
 -- A schema-full professional_details table.
-DEFINE TABLE professional_details SCHEMAFULL TYPE RELATION IN user_id OUT user_id;
+DEFINE TABLE OVERWRITE professional_details SCHEMAFULL TYPE NORMAL;
 -- define some fields.
 DEFINE FIELD occupation ON TABLE professional_details TYPE string;
 DEFINE FIELD active ON TABLE professional_details TYPE bool
@@ -34,7 +34,7 @@ DEFINE FIELD updated_at ON TABLE professional_details TYPE datetime
   VALUE time::now();
 
 -- A schema-full portfolio table.
-DEFINE TABLE portfolio SCHEMAFULL TYPE RELATION IN user_id OUT user_id;
+DEFINE TABLE OVERWRITE portfolio SCHEMAFULL TYPE NORMAL;
 -- define some fields.
 DEFINE FIELD title ON TABLE portfolio TYPE string;
 DEFINE FIELD description ON TABLE portfolio TYPE string;
@@ -53,7 +53,7 @@ DEFINE FIELD updated_at ON TABLE portfolio TYPE datetime
   VALUE time::now();
 
 -- A schema-full resume table.
-DEFINE TABLE resume SCHEMAFULL TYPE RELATION IN user_id OUT user_id;
+DEFINE TABLE OVERWRITE resume SCHEMAFULL TYPE NORMAL;
 -- define some fields.
 DEFINE FIELD section ON TABLE resume TYPE string
 -- Allow only these values in the array
@@ -82,7 +82,7 @@ DEFINE FIELD updated_at ON TABLE achievement TYPE datetime
 
 
 -- Aschema-full service table.
-DEFINE TABLE service SCHEMAFULL TYPE RELATION IN user_id OUT user_id;
+DEFINE TABLE OVERWRITE service SCHEMAFULL TYPE NORMAL;
 -- define some fields.
 DEFINE FIELD title ON TABLE service TYPE string;
 DEFINE INDEX titleIndex ON TABLE service COLUMNS title UNIQUE;
@@ -175,7 +175,7 @@ DEFINE FIELD created_at ON TABLE notification TYPE datetime
   DEFAULT time::now() READONLY;
 
 -- A schema-full skill table.
-DEFINE TABLE skill SCHEMAFULL TYPE RELATION IN user_id OUT user_id;
+DEFINE TABLE OVERWRITE skill SCHEMAFULL TYPE NORMAL;
 -- define some fields.
 DEFINE FIELD name ON TABLE skill TYPE string;
 DEFINE FIELD type ON TABLE skill TYPE string

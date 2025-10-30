@@ -20,7 +20,7 @@ use lib::{
     integration::grpc::clients::files_service::{
         files_service_client::FilesServiceClient, FetchFileNameRequest,
     },
-    middleware::auth::graphql::check_auth_from_acl,
+    middleware::auth::graphql::confirm_authentication,
     utils::{
         custom_error::ExtendedError,
         grpc::{create_grpc_client, AuthMetaData},
@@ -303,7 +303,7 @@ impl Query {
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
-        let _auth_res_from_acl = check_auth_from_acl(headers).await?;
+        let _auth_res_from_acl = confirm_authentication(headers).await?;
 
         // fetch all messages in DB
         let mut query_results = db

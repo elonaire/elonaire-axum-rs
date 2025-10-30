@@ -8,7 +8,7 @@ use hyper::{HeaderMap, StatusCode};
 use lib::utils::models::{ForeignKey, UploadedFile, User};
 use lib::{
     integration::foreign_key::add_foreign_key_if_not_exists,
-    middleware::auth::graphql::check_auth_from_acl, utils::custom_error::ExtendedError,
+    middleware::auth::graphql::confirm_authentication, utils::custom_error::ExtendedError,
 };
 use surrealdb::{engine::remote::ws::Client as SurrealClient, Surreal};
 
@@ -39,7 +39,7 @@ impl Mutation {
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
-        let auth_res_from_acl = check_auth_from_acl(headers).await?;
+        let auth_res_from_acl = confirm_authentication(headers).await?;
 
         let user_fk = ForeignKey {
             table: "user_id".to_string(),
@@ -63,28 +63,18 @@ impl Mutation {
         }
 
         let mut database_transaction = db
-        .query(
-            "
-            BEGIN TRANSACTION;
-            LET $user = (SELECT VALUE id FROM ONLY type::table($table) WHERE user_id = $user_id LIMIT 1);
-            LET $professional_details = (RELATE $user -> professional_details -> $user CONTENT $professional_details_input RETURN AFTER)[0];
-            RETURN $professional_details;
-            COMMIT TRANSACTION;
-            "
-        )
-        .bind(("professional_details_input", professional_details))
-        .bind(("table", "user_id"))
-        .bind(("user_id", auth_res_from_acl.sub))
-        .await
-        .map_err(|e| {
-            tracing::debug!("DB Query Failed: {}", e);
-            // Error::new("Internal Server Error.")
-            ExtendedError::new(
-                "Failed",
-                StatusCode::BAD_REQUEST.as_str(),
+            .query(
+                "
+            (CREATE professional_details CONTENT $professional_details_input RETURN AFTER)
+            ",
             )
-            .build()
-        })?;
+            .bind(("professional_details_input", professional_details))
+            .await
+            .map_err(|e| {
+                tracing::debug!("DB Query Failed: {}", e);
+                // Error::new("Internal Server Error.")
+                ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
+            })?;
 
         let response: Option<UserProfessionalInfo> = database_transaction.take(0).map_err(|e| {
             tracing::debug!("Deserialization Failed: {}", e);
@@ -116,7 +106,7 @@ impl Mutation {
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
-        let auth_res_from_acl = check_auth_from_acl(headers).await?;
+        let auth_res_from_acl = confirm_authentication(headers).await?;
 
         let user_fk = ForeignKey {
             table: "user_id".to_string(),
@@ -140,26 +130,15 @@ impl Mutation {
         let mut database_transaction = db
             .query(
                 "
-            BEGIN TRANSACTION;
-            LET $user = (SELECT VALUE id FROM ONLY type::table($table) WHERE user_id = $user_id LIMIT 1);
-
-            LET $user_service = (RELATE $user->service->$user CONTENT $user_service_input RETURN AFTER)[0];
-            RETURN $user_service;
-            COMMIT TRANSACTION;
+                (CREATE service CONTENT $user_service_input RETURN AFTER)
             ",
             )
             .bind(("user_service_input", user_service))
-            .bind(("table", "user_id"))
-            .bind(("user_id", auth_res_from_acl.sub))
             .await
             .map_err(|e| {
                 tracing::debug!("DB Query Error: {}", e);
 
-                ExtendedError::new(
-                    "Failed",
-                    StatusCode::BAD_REQUEST.as_str(),
-                )
-                .build()
+                ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
             })?;
 
         let response: Option<user::UserService> = database_transaction.take(0).map_err(|e| {
@@ -179,6 +158,7 @@ impl Mutation {
         &self,
         ctx: &Context<'_>,
         portfolio_item: user::UserPortfolioInput,
+        skills: Vec<String>,
     ) -> async_graphql::Result<user::UserPortfolio> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
@@ -193,7 +173,7 @@ impl Mutation {
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
-        let auth_res_from_acl = check_auth_from_acl(headers).await?;
+        let auth_res_from_acl = confirm_authentication(headers).await?;
 
         let user_fk = ForeignKey {
             table: "user_id".to_string(),
@@ -218,15 +198,20 @@ impl Mutation {
             .query(
                 "
                 BEGIN TRANSACTION;
-                LET $user = (SELECT VALUE id FROM ONLY type::table($table) WHERE user_id = $user_id LIMIT 1);
-                LET $portfolio_item = SELECT *, ->uses_skill->skill.* AS skills FROM ONLY (RELATE $user -> portfolio -> $user CONTENT $portfolio_item_input RETURN AFTER)[0] LIMIT 1;
+                LET $portfolio_item = (SELECT VALUE id FROM ONLY (CREATE portfolio CONTENT $portfolio_item_input RETURN AFTER) LIMIT 1);
+
+                FOR $skill IN $skills {
+                    LET $skill = type::thing('skill', $skill);
+
+                    RELATE $portfolio_item -> uses_skill -> $skill;
+                };
+                LET $portfolio_item = (SELECT *, ->uses_skill->skill[*] AS skills FROM ONLY $portfolio_item LIMIT 1);
                 RETURN $portfolio_item;
                 COMMIT TRANSACTION;
             ",
             )
             .bind(("portfolio_item_input", portfolio_item))
-            .bind(("table", "user_id"))
-            .bind(("user_id", auth_res_from_acl.sub))
+            .bind(("skills", skills))
             .await
             .map_err(|e| {
                 tracing::debug!("DB Query Error: {}", e);
@@ -255,6 +240,7 @@ impl Mutation {
         &self,
         ctx: &Context<'_>,
         resume_item: user::UserResumeInput,
+        achievements: Vec<user::ResumeAchievementInput>,
     ) -> async_graphql::Result<user::UserResume> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
@@ -269,7 +255,7 @@ impl Mutation {
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
-        let auth_res_from_acl = check_auth_from_acl(headers).await?;
+        let auth_res_from_acl = confirm_authentication(headers).await?;
 
         let user_fk = ForeignKey {
             table: "user_id".to_string(),
@@ -296,16 +282,18 @@ impl Mutation {
             .query(
                 "
             BEGIN TRANSACTION;
-            LET $user = (SELECT VALUE id FROM type::table($table) WHERE user_id = $user_id LIMIT 1);
+            LET $resume = (SELECT VALUE id FROM (CREATE resume CONTENT $resume_item_input RETURN AFTER));
 
-            LET $resume_item = SELECT *, ->achievement.* AS achievements  FROM ONLY (RELATE $user->resume->$user CONTENT $resume_item_input RETURN AFTER)[0] LIMIT 1;
-            RETURN $resume_item;
+            FOR $achievement IN $achievements {
+                RELATE $resume->achievement->$resume CONTENT $achievement;
+            };
+            LET $resume = SELECT *, ->achievement.* AS achievements FROM ONLY $resume LIMIT 1;
+            RETURN $resume;
             COMMIT TRANSACTION;
             ",
             )
             .bind(("resume_item_input", resume_item))
-            .bind(("table", "user_id"))
-            .bind(("user_id", auth_res_from_acl.sub))
+            .bind(("achievements", achievements))
             .await
             .map_err(|e| {
                 tracing::debug!("DB Query Error: {}", e);
@@ -329,87 +317,6 @@ impl Mutation {
         }
     }
 
-    /// Create a new user resume item achievement
-    pub async fn create_resume_item_achievement(
-        &self,
-        ctx: &Context<'_>,
-        resume_item_achievement: user::ResumeAchievementInput,
-        resume_id: String,
-    ) -> async_graphql::Result<user::ResumeAchievement> {
-        let db = ctx
-            .data::<Extension<Arc<Surreal<SurrealClient>>>>()
-            .map_err(|e| {
-                tracing::error!("Error Surreal Client: {:?}", e);
-                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str())
-                    .build()
-            })?;
-
-        let headers = ctx.data::<HeaderMap>().map_err(|e| {
-            tracing::error!("Error HeaderMap: {:?}", e);
-            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
-        })?;
-
-        let auth_res_from_acl = check_auth_from_acl(headers).await?;
-
-        let user_fk = ForeignKey {
-            table: "user_id".to_string(),
-            column: "user_id".to_string(),
-            foreign_key: auth_res_from_acl.sub.clone(),
-        };
-
-        let id_added =
-            add_foreign_key_if_not_exists::<Extension<Arc<Surreal<SurrealClient>>>, User>(
-                db, user_fk,
-            )
-            .await;
-
-        if id_added.is_none() {
-            tracing::error!("Failed to add user_id");
-            return Err(ExtendedError::new(
-                "Something went wrong",
-                StatusCode::INTERNAL_SERVER_ERROR.as_str(),
-            )
-            .build());
-        }
-
-        let mut database_transaction = db
-        .query(
-            "
-            BEGIN TRANSACTION;
-            LET $resume = type::thing($resume_id);
-
-            LET $resume_item_achievement = (RELATE $resume->achievement->$resume CONTENT $resume_item_achievement_input RETURN AFTER)[0];
-            RETURN $resume_item_achievement;
-            COMMIT TRANSACTION;
-            "
-        )
-        .bind(("resume_item_achievement_input", resume_item_achievement))
-        .bind(("table", "resume"))
-        .bind(("resume_id", format!("resume:{}", resume_id)))
-        .await
-        .map_err(|e| {
-            tracing::debug!("DB Query Error: {}", e);
-
-            ExtendedError::new(
-                "Failed",
-                StatusCode::BAD_REQUEST.as_str(),
-            )
-            .build()
-        })?;
-
-        let response: Option<user::ResumeAchievement> =
-            database_transaction.take(0).map_err(|e| {
-                tracing::error!("Deserialization Error: {:?}", e);
-
-                ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
-            })?;
-
-        match response {
-            Some(resume_achievement) => Ok(resume_achievement),
-            None => Err(ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()),
-        }
-    }
-
     /// Create a new user skill
     pub async fn create_skill(
         &self,
@@ -429,7 +336,7 @@ impl Mutation {
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
-        let auth_res_from_acl = check_auth_from_acl(headers).await?;
+        let auth_res_from_acl = confirm_authentication(headers).await?;
 
         let user_fk = ForeignKey {
             table: "user_id".to_string(),
@@ -455,17 +362,10 @@ impl Mutation {
         let mut database_transaction = db
             .query(
                 "
-            BEGIN TRANSACTION;
-            LET $user = (SELECT VALUE id FROM type::table($table) WHERE user_id = $user_id LIMIT 1);
-
-            LET $skill = (RELATE $user->skill->$user CONTENT $skill_input RETURN AFTER)[0];
-            RETURN $skill;
-            COMMIT TRANSACTION;
+                (CREATE skill CONTENT $skill_input RETURN AFTER)
             ",
             )
             .bind(("skill_input", skill))
-            .bind(("table", "user_id"))
-            .bind(("user_id", auth_res_from_acl.sub))
             .await
             .map_err(|e| {
                 tracing::debug!("DB Query Error: {}", e);
@@ -504,7 +404,7 @@ impl Mutation {
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
-        let auth_res_from_acl = check_auth_from_acl(headers).await?;
+        let auth_res_from_acl = confirm_authentication(headers).await?;
 
         let user_fk = ForeignKey {
             table: "user_id".to_string(),
@@ -602,7 +502,7 @@ impl Mutation {
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
-        let auth_res_from_acl = check_auth_from_acl(headers).await?;
+        let auth_res_from_acl = confirm_authentication(headers).await?;
 
         let user_fk = ForeignKey {
             table: "user_id".to_string(),
@@ -693,7 +593,7 @@ impl Mutation {
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
-        let auth_res_from_acl = check_auth_from_acl(headers).await?;
+        let auth_res_from_acl = confirm_authentication(headers).await?;
 
         let user_fk = ForeignKey {
             table: "user_id".to_string(),
@@ -784,7 +684,7 @@ impl Mutation {
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
-        let auth_res_from_acl = check_auth_from_acl(headers).await?;
+        let auth_res_from_acl = confirm_authentication(headers).await?;
 
         let user_fk = ForeignKey {
             table: "user_id".to_string(),
@@ -813,7 +713,7 @@ impl Mutation {
             BEGIN TRANSACTION;
             -- Get the user and blog post
             LET $user = (SELECT VALUE id FROM ONLY type::table($user_table) WHERE user_id = $user_id LIMIT 1);
-            LET $blog_post = (SELECT VALUE id FROM ONLY type::table($blog_table) WHERE id = type::thing($blog_post_id) LIMIT 1);
+            LET $blog_post = (SELECT VALUE id FROM ONLY type::table($blog_table) WHERE id = type::thing('blog_post', $blog_post_id) LIMIT 1);
 
 
             -- Relate the reaction to the user and blog_post
@@ -827,7 +727,7 @@ impl Mutation {
         .bind(("user_id", auth_res_from_acl.sub))
         .bind(("user_table", "user_id"))
         .bind(("blog_table", "blog_post"))
-        .bind(("blog_post_id", format!("blog_post:{}", blog_post_id)))
+        .bind(("blog_post_id", blog_post_id))
         .await
         .map_err(|e| {
             tracing::debug!("DB Query Error: {}", e);
@@ -871,7 +771,7 @@ impl Mutation {
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
-        let auth_res_from_acl = check_auth_from_acl(headers).await?;
+        let auth_res_from_acl = confirm_authentication(headers).await?;
 
         let user_fk = ForeignKey {
             table: "user_id".to_string(),
@@ -900,7 +800,7 @@ impl Mutation {
             BEGIN TRANSACTION;
             -- Get the user, comment
             LET $user = (SELECT VALUE id FROM ONLY type::table($user_table) WHERE user_id = $user_id LIMIT 1);
-            LET $comment = (SELECT VALUE id FROM ONLY type::table($comment_table) WHERE id = type::thing($comment_id) LIMIT 1);
+            LET $comment = (SELECT VALUE id FROM ONLY type::table($comment_table) WHERE id = type::thing('comment', $comment_id) LIMIT 1);
 
             -- Relate the reaction to the user
             LET $reaction = (RELATE $user->reaction->$comment CONTENT $reaction_input RETURN AFTER)[0];
@@ -913,7 +813,7 @@ impl Mutation {
         .bind(("user_id", auth_res_from_acl.sub))
         .bind(("user_table", "user_id"))
         .bind(("comment_table", "comment"))
-        .bind(("comment_id", format!("comment:{}", comment_id)))
+        .bind(("comment_id", comment_id))
         .await
         .map_err(|e| {
             tracing::debug!("DB Query Error: {}", e);
@@ -964,68 +864,6 @@ impl Mutation {
         }
     }
 
-    /// Add a skill to a portfolio item
-    pub async fn add_skill_to_portfolio_item(
-        &self,
-        ctx: &Context<'_>,
-        skill_id: String,
-        portfolio_item_id: String,
-    ) -> async_graphql::Result<user::UserSkill> {
-        let db = ctx
-            .data::<Extension<Arc<Surreal<SurrealClient>>>>()
-            .map_err(|e| {
-                tracing::error!("Error Surreal Client: {:?}", e);
-                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str())
-                    .build()
-            })?;
-        let headers = ctx.data::<HeaderMap>().map_err(|e| {
-            tracing::error!("Error HeaderMap: {:?}", e);
-            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
-        })?;
-
-        let _auth_res_from_acl = check_auth_from_acl(headers).await?;
-
-        let mut database_transaction = db
-            .query(
-                "
-            BEGIN TRANSACTION;
-            -- Get the skill and portfolio item
-            LET $skill = type::thing($skill_id);
-            LET $portfolio_item = type::thing($portfolio_item_id);
-
-            -- Relate the skill to the portfolio item
-            RELATE $portfolio_item->uses_skill->$skill;
-            LET $skill_val = SELECT * FROM ONLY $skill LIMIT 1;
-
-            RETURN $skill_val;
-            COMMIT TRANSACTION;
-            ",
-            )
-            .bind(("skill_id", format!("skill:{}", skill_id)))
-            .bind(("skill_table", "skill"))
-            .bind((
-                "portfolio_item_id",
-                format!("portfolio:{}", portfolio_item_id),
-            ))
-            .bind(("portfolio_table", "portfolio"))
-            .await
-            .map_err(|e| {
-                tracing::debug!("DB Query Error: {}", e);
-
-                ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
-            })?;
-
-        let response: Option<user::UserSkill> = database_transaction.take(0).map_err(|e| {
-            tracing::error!("Deserialization Error: {:?}", e);
-            ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
-        })?;
-
-        match response {
-            Some(user_skill) => Ok(user_skill),
-            None => Err(ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()),
-        }
-    }
-
     pub async fn edit_blog_post(
         &self,
         ctx: &Context<'_>,
@@ -1044,7 +882,7 @@ impl Mutation {
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
-        let _auth_res_from_acl = check_auth_from_acl(headers).await?;
+        let _auth_res_from_acl = confirm_authentication(headers).await?;
 
         let response: Option<blog::BlogPost> = db
             .update(("blog_post", blog_post_id))

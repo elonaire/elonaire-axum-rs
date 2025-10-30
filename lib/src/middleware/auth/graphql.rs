@@ -20,7 +20,7 @@ use tonic::transport::Channel;
 
 /// False middleware for checking authentication from ACL service for GraphQL requests.
 /// I used this anti-pattern because the middleware in async-graphql just doesn't work. The headers are not properly parsed.
-pub async fn check_auth_from_acl(headers: &HeaderMap) -> Result<AuthStatus, Error> {
+pub async fn confirm_authentication(headers: &HeaderMap) -> Result<AuthStatus, Error> {
     let auth_header = headers.get(AUTHORIZATION);
     let cookie_header = headers.get(COOKIE);
 
