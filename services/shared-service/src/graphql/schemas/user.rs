@@ -284,6 +284,11 @@ impl UserService {
 #[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
 pub struct UserResources {
     pub blog_posts: Vec<BlogPost>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
+pub struct PublicSiteResources {
+    pub blog_posts: Vec<BlogPost>,
     pub professional_info: Vec<UserProfessionalInfo>,
     pub portfolio: Vec<UserPortfolio>,
     pub resume: Vec<UserResume>,
