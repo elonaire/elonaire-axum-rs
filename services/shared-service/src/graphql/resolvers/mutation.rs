@@ -5,7 +5,8 @@ use axum::Extension;
 // use gql_client::Client as GQLClient;
 
 use hyper::{HeaderMap, StatusCode};
-use lib::utils::models::{ForeignKey, UploadedFile, User};
+use lib::utils::grpc::confirm_authorization;
+use lib::utils::models::{AdminPrivilege, AuthorizationConstraint, ForeignKey, UploadedFile, User};
 use lib::{
     integration::foreign_key::add_foreign_key_if_not_exists,
     middleware::auth::graphql::confirm_authentication, utils::custom_error::ExtendedError,
@@ -39,12 +40,24 @@ impl Mutation {
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
-        let auth_res_from_acl = confirm_authentication(headers).await?;
+        let authenticated = confirm_authentication(headers).await?;
+        let authenticated_ref = &authenticated;
+
+        let authorization_constraint = AuthorizationConstraint {
+            roles: vec![],
+            privilege: Some(AdminPrivilege::SuperAdmin),
+        };
+        let authorized =
+            confirm_authorization(authenticated_ref, &authorization_constraint).await?;
+
+        if !authorized {
+            return Err(ExtendedError::new("Forbidden", StatusCode::FORBIDDEN.as_str()).build());
+        }
 
         let user_fk = ForeignKey {
             table: "user_id".to_string(),
             column: "user_id".to_string(),
-            foreign_key: auth_res_from_acl.sub.clone(),
+            foreign_key: authenticated_ref.sub.to_owned(),
         };
 
         let id_added =
@@ -106,12 +119,24 @@ impl Mutation {
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
-        let auth_res_from_acl = confirm_authentication(headers).await?;
+        let authenticated = confirm_authentication(headers).await?;
+        let authenticated_ref = &authenticated;
+
+        let authorization_constraint = AuthorizationConstraint {
+            roles: vec![],
+            privilege: Some(AdminPrivilege::SuperAdmin),
+        };
+        let authorized =
+            confirm_authorization(authenticated_ref, &authorization_constraint).await?;
+
+        if !authorized {
+            return Err(ExtendedError::new("Forbidden", StatusCode::FORBIDDEN.as_str()).build());
+        }
 
         let user_fk = ForeignKey {
             table: "user_id".to_string(),
             column: "user_id".to_string(),
-            foreign_key: auth_res_from_acl.sub.clone(),
+            foreign_key: authenticated_ref.sub.to_owned(),
         };
 
         let added_user_id = add_foreign_key_if_not_exists::<
@@ -173,12 +198,24 @@ impl Mutation {
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
-        let auth_res_from_acl = confirm_authentication(headers).await?;
+        let authenticated = confirm_authentication(headers).await?;
+        let authenticated_ref = &authenticated;
+
+        let authorization_constraint = AuthorizationConstraint {
+            roles: vec![],
+            privilege: Some(AdminPrivilege::SuperAdmin),
+        };
+        let authorized =
+            confirm_authorization(authenticated_ref, &authorization_constraint).await?;
+
+        if !authorized {
+            return Err(ExtendedError::new("Forbidden", StatusCode::FORBIDDEN.as_str()).build());
+        }
 
         let user_fk = ForeignKey {
             table: "user_id".to_string(),
             column: "user_id".to_string(),
-            foreign_key: auth_res_from_acl.sub.clone(),
+            foreign_key: authenticated_ref.sub.to_owned(),
         };
 
         let id_added =
@@ -255,12 +292,24 @@ impl Mutation {
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
-        let auth_res_from_acl = confirm_authentication(headers).await?;
+        let authenticated = confirm_authentication(headers).await?;
+        let authenticated_ref = &authenticated;
+
+        let authorization_constraint = AuthorizationConstraint {
+            roles: vec![],
+            privilege: Some(AdminPrivilege::SuperAdmin),
+        };
+        let authorized =
+            confirm_authorization(authenticated_ref, &authorization_constraint).await?;
+
+        if !authorized {
+            return Err(ExtendedError::new("Forbidden", StatusCode::FORBIDDEN.as_str()).build());
+        }
 
         let user_fk = ForeignKey {
             table: "user_id".to_string(),
             column: "user_id".to_string(),
-            foreign_key: auth_res_from_acl.sub.clone(),
+            foreign_key: authenticated_ref.sub.to_owned(),
         };
 
         let id_added =
@@ -336,12 +385,24 @@ impl Mutation {
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
-        let auth_res_from_acl = confirm_authentication(headers).await?;
+        let authenticated = confirm_authentication(headers).await?;
+        let authenticated_ref = &authenticated;
+
+        let authorization_constraint = AuthorizationConstraint {
+            roles: vec![],
+            privilege: Some(AdminPrivilege::SuperAdmin),
+        };
+        let authorized =
+            confirm_authorization(authenticated_ref, &authorization_constraint).await?;
+
+        if !authorized {
+            return Err(ExtendedError::new("Forbidden", StatusCode::FORBIDDEN.as_str()).build());
+        }
 
         let user_fk = ForeignKey {
             table: "user_id".to_string(),
             column: "user_id".to_string(),
-            foreign_key: auth_res_from_acl.sub.clone(),
+            foreign_key: authenticated_ref.sub.to_owned(),
         };
 
         let id_added =
@@ -404,12 +465,24 @@ impl Mutation {
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
-        let auth_res_from_acl = confirm_authentication(headers).await?;
+        let authenticated = confirm_authentication(headers).await?;
+        let authenticated_ref = &authenticated;
+
+        let authorization_constraint = AuthorizationConstraint {
+            roles: vec![String::from("WRITER")],
+            privilege: Some(AdminPrivilege::Admin),
+        };
+        let authorized =
+            confirm_authorization(authenticated_ref, &authorization_constraint).await?;
+
+        if !authorized {
+            return Err(ExtendedError::new("Forbidden", StatusCode::FORBIDDEN.as_str()).build());
+        }
 
         let user_fk = ForeignKey {
             table: "user_id".to_string(),
             column: "user_id".to_string(),
-            foreign_key: auth_res_from_acl.sub.clone(),
+            foreign_key: authenticated_ref.sub.to_owned(),
         };
 
         let content_file_fk = ForeignKey {
@@ -502,12 +575,13 @@ impl Mutation {
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
-        let auth_res_from_acl = confirm_authentication(headers).await?;
+        let authenticated = confirm_authentication(headers).await?;
+        let authenticated_ref = &authenticated;
 
         let user_fk = ForeignKey {
             table: "user_id".to_string(),
             column: "user_id".to_string(),
-            foreign_key: auth_res_from_acl.sub.clone(),
+            foreign_key: authenticated_ref.sub.to_owned(),
         };
 
         let id_added =
@@ -548,7 +622,7 @@ impl Mutation {
         .bind(("blog_comment_input", blog_comment))
         .bind(("blog_table", "blog_post"))
         .bind(("blog_post_id", format!("blog_post:{}", blog_post_id)))
-        .bind(("user_id", auth_res_from_acl.sub))
+        .bind(("user_id", authenticated.sub))
         .bind(("user_table", "user_id"))
         .await
         .map_err(|e| {
@@ -593,12 +667,13 @@ impl Mutation {
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
-        let auth_res_from_acl = confirm_authentication(headers).await?;
+        let authenticated = confirm_authentication(headers).await?;
+        let authenticated_ref = &authenticated;
 
         let user_fk = ForeignKey {
             table: "user_id".to_string(),
             column: "user_id".to_string(),
-            foreign_key: auth_res_from_acl.sub.clone(),
+            foreign_key: authenticated_ref.sub.to_owned(),
         };
 
         let id_added =
@@ -639,7 +714,7 @@ impl Mutation {
         .bind(("blog_comment_input", blog_comment))
         .bind(("comment_table", "comment"))
         .bind(("comment_id", format!("comment:{}", comment_id)))
-        .bind(("user_id", auth_res_from_acl.sub))
+        .bind(("user_id", authenticated.sub))
         .bind(("user_table", "user_id"))
         .await
         .map_err(|e| {
@@ -684,12 +759,13 @@ impl Mutation {
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
-        let auth_res_from_acl = confirm_authentication(headers).await?;
+        let authenticated = confirm_authentication(headers).await?;
+        let authenticated_ref = &authenticated;
 
         let user_fk = ForeignKey {
             table: "user_id".to_string(),
             column: "user_id".to_string(),
-            foreign_key: auth_res_from_acl.sub.clone(),
+            foreign_key: authenticated_ref.sub.to_owned(),
         };
 
         let id_added =
@@ -724,7 +800,7 @@ impl Mutation {
             "
         )
         .bind(("reaction_input", reaction))
-        .bind(("user_id", auth_res_from_acl.sub))
+        .bind(("user_id", authenticated.sub))
         .bind(("user_table", "user_id"))
         .bind(("blog_table", "blog_post"))
         .bind(("blog_post_id", blog_post_id))
@@ -771,12 +847,13 @@ impl Mutation {
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
-        let auth_res_from_acl = confirm_authentication(headers).await?;
+        let authenticated = confirm_authentication(headers).await?;
+        let authenticated_ref = &authenticated;
 
         let user_fk = ForeignKey {
             table: "user_id".to_string(),
             column: "user_id".to_string(),
-            foreign_key: auth_res_from_acl.sub.clone(),
+            foreign_key: authenticated_ref.sub.to_owned(),
         };
 
         let id_added =
@@ -810,7 +887,7 @@ impl Mutation {
             "
         )
         .bind(("reaction_input", reaction))
-        .bind(("user_id", auth_res_from_acl.sub))
+        .bind(("user_id", authenticated.sub))
         .bind(("user_table", "user_id"))
         .bind(("comment_table", "comment"))
         .bind(("comment_id", comment_id))
@@ -882,7 +959,19 @@ impl Mutation {
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
-        let _auth_res_from_acl = confirm_authentication(headers).await?;
+        let authenticated = confirm_authentication(headers).await?;
+        let authenticated_ref = &authenticated;
+
+        let authorization_constraint = AuthorizationConstraint {
+            roles: vec![String::from("WRITER")],
+            privilege: Some(AdminPrivilege::Admin),
+        };
+        let authorized =
+            confirm_authorization(authenticated_ref, &authorization_constraint).await?;
+
+        if !authorized {
+            return Err(ExtendedError::new("Forbidden", StatusCode::FORBIDDEN.as_str()).build());
+        }
 
         let response: Option<blog::BlogPost> = db
             .update(("blog_post", blog_post_id))

@@ -3,8 +3,8 @@ use crate::{
         acl_client::AclClient, ConfirmAuthenticationRequest,
     },
     utils::{
-        auth::AuthStatus,
         grpc::{create_grpc_client, AuthMetaData},
+        models::AuthStatus,
     },
 };
 
@@ -56,11 +56,8 @@ pub async fn confirm_authentication(headers: &HeaderMap) -> Result<AuthStatus, E
 
     match response {
         Ok(response) => {
-            let current_user = response.into_inner().sub;
-            Ok(AuthStatus {
-                sub: current_user,
-                is_auth: true,
-            })
+            let auth_status = response.into_inner().into();
+            Ok(auth_status)
         }
         Err(_e) => return Err(Error::new(ErrorKind::PermissionDenied, "Unauthorized")),
     }

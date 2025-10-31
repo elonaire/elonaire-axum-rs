@@ -303,7 +303,7 @@ impl Query {
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
-        let _auth_res_from_acl = confirm_authentication(headers).await?;
+        let _authenticated = confirm_authentication(headers).await?;
 
         // fetch all messages in DB
         let mut query_results = db
