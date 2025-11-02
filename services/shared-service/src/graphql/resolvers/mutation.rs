@@ -44,7 +44,7 @@ impl Mutation {
         let authenticated_ref = &authenticated;
 
         let authorization_constraint = AuthorizationConstraint {
-            roles: vec![],
+            permissions: vec!["write:professional_details".into()],
             privilege: Some(AdminPrivilege::SuperAdmin),
         };
         let authorized =
@@ -123,7 +123,7 @@ impl Mutation {
         let authenticated_ref = &authenticated;
 
         let authorization_constraint = AuthorizationConstraint {
-            roles: vec![],
+            permissions: vec!["write:service".into()],
             privilege: Some(AdminPrivilege::SuperAdmin),
         };
         let authorized =
@@ -202,7 +202,7 @@ impl Mutation {
         let authenticated_ref = &authenticated;
 
         let authorization_constraint = AuthorizationConstraint {
-            roles: vec![],
+            permissions: vec!["write:portfolio".into()],
             privilege: Some(AdminPrivilege::SuperAdmin),
         };
         let authorized =
@@ -296,7 +296,7 @@ impl Mutation {
         let authenticated_ref = &authenticated;
 
         let authorization_constraint = AuthorizationConstraint {
-            roles: vec![],
+            permissions: vec!["write:resume_item".into()],
             privilege: Some(AdminPrivilege::SuperAdmin),
         };
         let authorized =
@@ -389,7 +389,7 @@ impl Mutation {
         let authenticated_ref = &authenticated;
 
         let authorization_constraint = AuthorizationConstraint {
-            roles: vec![],
+            permissions: vec!["write:skill".into()],
             privilege: Some(AdminPrivilege::SuperAdmin),
         };
         let authorized =
@@ -469,7 +469,7 @@ impl Mutation {
         let authenticated_ref = &authenticated;
 
         let authorization_constraint = AuthorizationConstraint {
-            roles: vec![String::from("WRITER")],
+            permissions: vec!["write:blog_post".into()],
             privilege: Some(AdminPrivilege::Admin),
         };
         let authorized =
@@ -963,7 +963,7 @@ impl Mutation {
         let authenticated_ref = &authenticated;
 
         let authorization_constraint = AuthorizationConstraint {
-            roles: vec![String::from("WRITER")],
+            permissions: vec!["write:blog_post".into()],
             privilege: Some(AdminPrivilege::Admin),
         };
         let authorized =

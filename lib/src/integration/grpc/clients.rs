@@ -36,7 +36,7 @@ impl From<acl_service::ConfirmAuthenticationResponse> for utils::models::AuthSta
 impl From<acl_service::AuthorizationConstraint> for utils::models::AuthorizationConstraint {
     fn from(authorization_constraint: acl_service::AuthorizationConstraint) -> Self {
         Self {
-            roles: authorization_constraint.roles,
+            permissions: authorization_constraint.permissions,
             privilege: Some(
                 authorization_constraint
                     .privilege
@@ -52,7 +52,7 @@ impl From<acl_service::AuthorizationConstraint> for utils::models::Authorization
 impl From<utils::models::AuthorizationConstraint> for acl_service::AuthorizationConstraint {
     fn from(authorization_constraint: utils::models::AuthorizationConstraint) -> Self {
         Self {
-            roles: authorization_constraint.roles,
+            permissions: authorization_constraint.permissions,
             privilege: Some(
                 authorization_constraint
                     .privilege

@@ -232,6 +232,20 @@ impl UserSkill {
     async fn id(&self) -> String {
         self.id.key().to_string()
     }
+
+    async fn years_of_experience(&self) -> Option<u32> {
+        // TODO: factor in months, currently only years e.g. 1 year 6 months
+        // calculate years of experience from &self.start_date
+        let parsed_start_date = DateTime::parse_from_rfc3339(&self.start_date).ok()?;
+        let start_date_ymd = NaiveDate::from_ymd_opt(
+            parsed_start_date.year(),
+            parsed_start_date.month(),
+            parsed_start_date.day(),
+        )?;
+
+        let today = Utc::now().date_naive();
+        Some(today.years_since(start_date_ymd)?)
+    }
 }
 
 // UserSkillType enum

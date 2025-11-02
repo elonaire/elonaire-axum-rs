@@ -25,7 +25,7 @@ enum AdminPrivilege {
 }
 
 message AuthorizationConstraint {
-  repeated string roles = 1;
+  repeated string permissions = 1;
   optional AdminPrivilege privilege = 2;
 }
 
