@@ -1,5 +1,8 @@
 use async_trait::async_trait;
-use hyper::header::HeaderValue;
+use hyper::{
+    header::{HeaderValue, AUTHORIZATION, COOKIE},
+    HeaderMap,
+};
 use std::{
     env,
     io::{Error as StdError, ErrorKind},
@@ -29,6 +32,35 @@ pub struct AuthMetaData<'a, T> {
     pub auth_header: Option<&'a HeaderValue>,
     pub cookie_header: Option<&'a HeaderValue>,
     pub constructed_grpc_request: Option<&'a mut Request<T>>,
+}
+
+impl<'a, T> std::fmt::Debug for AuthMetaData<'a, T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Safely format header values as strings
+        let auth_header = self
+            .auth_header
+            .map(|h| h.to_str().unwrap_or("<invalid UTF-8>"))
+            .unwrap_or("<none>");
+        let cookie_header = self
+            .cookie_header
+            .map(|h| h.to_str().unwrap_or("<invalid UTF-8>"))
+            .unwrap_or("<none>");
+
+        f.debug_struct("AuthMetaData")
+            .field("auth_header", &auth_header)
+            .field("cookie_header", &cookie_header)
+            // You can’t safely print a &mut Request<T> without borrowing it
+            // So just indicate its presence
+            .field(
+                "constructed_grpc_request",
+                &self
+                    .constructed_grpc_request
+                    .as_ref()
+                    .map(|_| "<some request>")
+                    .unwrap_or("<none>"),
+            )
+            .finish()
+    }
 }
 
 // Implement the trait for AclClient<Channel>
@@ -136,15 +168,19 @@ async fn add_auth_headers_to_request<R>(
 pub async fn confirm_authorization(
     auth_status: &AuthStatus,
     authorization_constraint: &AuthorizationConstraint,
+    headers: &HeaderMap,
 ) -> Result<bool, StdError> {
+    let auth_header = headers.get(AUTHORIZATION);
+    let cookie_header = headers.get(COOKIE);
+
     let mut request = tonic::Request::new(ConfirmAuthorizationRequest {
         auth_status: Some(auth_status.to_owned().into()),
         authorization_constraint: Some(authorization_constraint.to_owned().into()),
     });
 
     let auth_metadata: AuthMetaData<ConfirmAuthorizationRequest> = AuthMetaData {
-        auth_header: None,
-        cookie_header: None,
+        auth_header: auth_header,
+        cookie_header: cookie_header,
         constructed_grpc_request: Some(&mut request),
     };
 

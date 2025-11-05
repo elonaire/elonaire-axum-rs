@@ -48,7 +48,7 @@ impl Mutation {
             privilege: Some(AdminPrivilege::SuperAdmin),
         };
         let authorized =
-            confirm_authorization(authenticated_ref, &authorization_constraint).await?;
+            confirm_authorization(authenticated_ref, &authorization_constraint, headers).await?;
 
         if !authorized {
             return Err(ExtendedError::new("Forbidden", StatusCode::FORBIDDEN.as_str()).build());
@@ -127,7 +127,7 @@ impl Mutation {
             privilege: Some(AdminPrivilege::SuperAdmin),
         };
         let authorized =
-            confirm_authorization(authenticated_ref, &authorization_constraint).await?;
+            confirm_authorization(authenticated_ref, &authorization_constraint, headers).await?;
 
         if !authorized {
             return Err(ExtendedError::new("Forbidden", StatusCode::FORBIDDEN.as_str()).build());
@@ -206,7 +206,7 @@ impl Mutation {
             privilege: Some(AdminPrivilege::SuperAdmin),
         };
         let authorized =
-            confirm_authorization(authenticated_ref, &authorization_constraint).await?;
+            confirm_authorization(authenticated_ref, &authorization_constraint, headers).await?;
 
         if !authorized {
             return Err(ExtendedError::new("Forbidden", StatusCode::FORBIDDEN.as_str()).build());
@@ -300,7 +300,7 @@ impl Mutation {
             privilege: Some(AdminPrivilege::SuperAdmin),
         };
         let authorized =
-            confirm_authorization(authenticated_ref, &authorization_constraint).await?;
+            confirm_authorization(authenticated_ref, &authorization_constraint, headers).await?;
 
         if !authorized {
             return Err(ExtendedError::new("Forbidden", StatusCode::FORBIDDEN.as_str()).build());
@@ -387,13 +387,14 @@ impl Mutation {
 
         let authenticated = confirm_authentication(headers).await?;
         let authenticated_ref = &authenticated;
+        tracing::debug!("authentication went through: {:?}", authenticated);
 
         let authorization_constraint = AuthorizationConstraint {
             permissions: vec!["write:skill".into()],
             privilege: Some(AdminPrivilege::SuperAdmin),
         };
         let authorized =
-            confirm_authorization(authenticated_ref, &authorization_constraint).await?;
+            confirm_authorization(authenticated_ref, &authorization_constraint, headers).await?;
 
         if !authorized {
             return Err(ExtendedError::new("Forbidden", StatusCode::FORBIDDEN.as_str()).build());
@@ -473,7 +474,7 @@ impl Mutation {
             privilege: Some(AdminPrivilege::Admin),
         };
         let authorized =
-            confirm_authorization(authenticated_ref, &authorization_constraint).await?;
+            confirm_authorization(authenticated_ref, &authorization_constraint, headers).await?;
 
         if !authorized {
             return Err(ExtendedError::new("Forbidden", StatusCode::FORBIDDEN.as_str()).build());
@@ -967,7 +968,7 @@ impl Mutation {
             privilege: Some(AdminPrivilege::Admin),
         };
         let authorized =
-            confirm_authorization(authenticated_ref, &authorization_constraint).await?;
+            confirm_authorization(authenticated_ref, &authorization_constraint, headers).await?;
 
         if !authorized {
             return Err(ExtendedError::new("Forbidden", StatusCode::FORBIDDEN.as_str()).build());

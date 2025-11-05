@@ -29,9 +29,7 @@ where
         mut service: S,
     ) -> Result<Response<BoxBody>, S::Error> {
         let start_time = Instant::now();
-        tracing::debug!("Starting middleware");
         // Call the service. You can also intercept request from middleware.
-
         let auth_header = req.headers().get(AUTHORIZATION);
         let cookie_header = req.headers().get(COOKIE);
 
@@ -63,13 +61,13 @@ where
 
         let response = acl_grpc_client.confirm_authentication(request).await?;
 
-        let current_user = response.into_inner().sub;
-        // Insert current user to the req extensions(response.sub)
-        req.extensions_mut().insert(current_user);
+        let auth_status = response.into_inner();
+        // Insert auth_status into the req extensions
+        req.extensions_mut().insert(auth_status);
         let result = service.call(req).await?;
 
         let elapsed_time = start_time.elapsed();
-        tracing::info!("Request processed in {:?}", elapsed_time);
+        tracing::info!("gRPC request processed in {:?}", elapsed_time);
 
         Ok(result)
     }

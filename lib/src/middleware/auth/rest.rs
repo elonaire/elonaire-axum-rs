@@ -4,7 +4,10 @@ use crate::{
     integration::grpc::clients::acl_service::{
         acl_client::AclClient, ConfirmAuthenticationRequest,
     },
-    utils::grpc::{create_grpc_client, AuthMetaData},
+    utils::{
+        grpc::{create_grpc_client, AuthMetaData},
+        models::AuthStatus,
+    },
 };
 use axum::{extract::Request, http::StatusCode, middleware::Next, response::Response};
 use hyper::header::{AUTHORIZATION, COOKIE};
@@ -49,9 +52,9 @@ pub async fn handle_auth_with_refresh(
 
     match response {
         Ok(response) => {
-            let current_user = response.into_inner().sub;
+            let auth_status: AuthStatus = response.into_inner().into();
             // Insert current user to the req extensions(response.sub)
-            req.extensions_mut().insert(current_user);
+            req.extensions_mut().insert(auth_status);
             Ok(next.run(req).await)
         }
         Err(_e) => return Err(StatusCode::UNAUTHORIZED),
