@@ -24,7 +24,7 @@ use lib::{
     utils::{
         custom_error::ExtendedError,
         grpc::{create_grpc_client, AuthMetaData},
-        models::UploadedFile,
+        models::UploadedFileId,
     },
 };
 
@@ -233,7 +233,7 @@ impl Query {
                     .build()
             })?;
 
-        let uploaded_file: Option<UploadedFile> = file_id_db_query.take(0)?;
+        let uploaded_file: Option<UploadedFileId> = file_id_db_query.take(0)?;
 
         if uploaded_file.is_none() {
             return Err(

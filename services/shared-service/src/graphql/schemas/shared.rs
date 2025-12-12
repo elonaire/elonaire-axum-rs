@@ -1,6 +1,10 @@
 use async_graphql::{ComplexObject, Enum, InputObject, SimpleObject};
+use lib::utils::models::CurrencyId;
+use lib::utils::serialization::{convert_float_to_string, deserialize_float, serialize_float};
 use serde::{Deserialize, Serialize};
 use surrealdb::RecordId;
+
+use crate::graphql::schemas::user::UserService;
 
 // Reaction
 #[derive(Clone, Debug, Serialize, Deserialize, InputObject)]
@@ -60,7 +64,7 @@ pub struct Message {
     pub body: String,
     pub sender_name: String,
     pub sender_email: String,
-    pub created_at: Option<String>,
+    pub created_at: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Enum, Copy, Eq, PartialEq)]
@@ -81,6 +85,104 @@ pub enum Subject {
 
 #[ComplexObject]
 impl Message {
+    async fn id(&self) -> String {
+        self.id.key().to_string()
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, InputObject)]
+pub struct ServiceRateInput {
+    #[graphql(skip)]
+    pub service: Option<RecordId>,
+    pub base_rate: String,
+    pub hour_week: Option<u8>,
+    #[graphql(skip)]
+    pub currency_id: Option<RecordId>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, InputObject)]
+pub struct ServiceRateInputMetadata {
+    pub service_id: String,
+    pub currency_id: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
+#[graphql(complex)]
+pub struct ServiceRate {
+    #[graphql(skip)]
+    pub id: RecordId,
+    pub service: UserService,
+    #[graphql(skip)]
+    pub base_rate: f64,
+    pub hour_week: u8,
+    pub currency_id: CurrencyId,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[ComplexObject]
+impl ServiceRate {
+    async fn id(&self) -> String {
+        self.id.key().to_string()
+    }
+
+    async fn base_rate(&self) -> String {
+        convert_float_to_string(self.base_rate)
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, InputObject)]
+pub struct RatecardInput {
+    pub name: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, InputObject)]
+pub struct RatecardInputMetadata {
+    pub service_ids: Vec<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
+#[graphql(complex)]
+pub struct Ratecard {
+    #[graphql(skip)]
+    pub id: RecordId,
+    pub name: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[ComplexObject]
+impl Ratecard {
+    async fn id(&self) -> String {
+        self.id.key().to_string()
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, InputObject)]
+pub struct ServiceRequestInput {
+    pub name: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, InputObject)]
+pub struct ServiceRequestInputMetadata {
+    pub service_ids: Vec<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
+#[graphql(complex)]
+pub struct ServiceRequest {
+    #[graphql(skip)]
+    pub id: RecordId,
+    pub description: String,
+    pub supporting_docs: Vec<String>,
+    pub start_date: String,
+    pub end_date: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[ComplexObject]
+impl ServiceRequest {
     async fn id(&self) -> String {
         self.id.key().to_string()
     }

@@ -5,3 +5,4 @@ pub mod custom_traits;
 pub mod grpc;
 pub mod macros;
 pub mod models;
+pub mod serialization;

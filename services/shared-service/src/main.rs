@@ -45,7 +45,7 @@ async fn graphql_handler(
 
     // Debug the response
     if response.errors.len() > 0 {
-        tracing::debug!("GraphQL Error: {:?}", response.errors);
+        tracing::error!("GraphQL Error: {:?}", response.errors);
     } else {
         tracing::info!("GraphQL request completed without errors");
     }
@@ -56,6 +56,21 @@ async fn graphql_handler(
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
+    // Persist the server logs to a file on a daily basis using "tracing_subscriber"
+    let file_appender = tracing_appender::rolling::daily("./logs", "shared.log");
+    let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
+
+    let stdout = std::io::stdout
+        .with_filter(|meta| {
+            meta.target() != "h2::codec::framed_write" && meta.target() != "h2::codec::framed_read"
+        })
+        .with_max_level(tracing::Level::DEBUG); // Log to console at DEBUG level
+
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::DEBUG)
+        .with_writer(stdout.and(non_blocking))
+        .init();
+
     let connection_pool = database::connection::create_db_connection()
         .await
         .map_err(|e| {
@@ -69,10 +84,14 @@ async fn main() -> Result<(), Error> {
 
     // Import env vars
     let deployment_env = env::var("ENVIRONMENT").unwrap_or_else(|_| "prod".to_string()); // default to production because it's the most secure
-    let allowed_services_cors = env::var("ALLOWED_SERVICES_CORS")
-        .expect("Missing the ALLOWED_SERVICES environment variable.");
-    let shared_service_http_port = env::var("SHARED_SERVICE_HTTP_PORT")
-        .expect("Missing the SHARED_SERVICE_HTTP_PORT environment variable.");
+    let allowed_services_cors = env::var("ALLOWED_SERVICES_CORS").map_err(|e| {
+        tracing::error!("Config Error: {}", e);
+        Error::new(ErrorKind::Other, "ALLOWED_SERVICES_CORS not set")
+    })?;
+    let shared_service_http_port = env::var("SHARED_SERVICE_HTTP_PORT").map_err(|e| {
+        tracing::error!("Config Error: {}", e);
+        Error::new(ErrorKind::Other, "SHARED_SERVICE_HTTP_PORT not set")
+    })?;
 
     // Initialize the schema builder
     let mut schema_builder = Schema::build(Query, Mutation, EmptySubscription);
@@ -89,21 +108,6 @@ async fn main() -> Result<(), Error> {
         .split(",")
         .filter_map(|endpoint| endpoint.trim().parse::<HeaderValue>().ok())
         .collect();
-
-    // Persist the server logs to a file on a daily basis using "tracing_subscriber"
-    let file_appender = tracing_appender::rolling::daily("./logs", "shared.log");
-    let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
-
-    let stdout = std::io::stdout
-        .with_filter(|meta| {
-            meta.target() != "h2::codec::framed_write" && meta.target() != "h2::codec::framed_read"
-        })
-        .with_max_level(tracing::Level::DEBUG); // Log to console at DEBUG level
-
-    tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::DEBUG)
-        .with_writer(stdout.and(non_blocking))
-        .init();
 
     let app = Router::new()
         .route("/", post(graphql_handler))

@@ -6,13 +6,20 @@ use axum::Extension;
 
 use hyper::{HeaderMap, StatusCode};
 use lib::utils::grpc::confirm_authorization;
-use lib::utils::models::{AdminPrivilege, AuthorizationConstraint, ForeignKey, UploadedFile, User};
+use lib::utils::models::{
+    AdminPrivilege, AuthorizationConstraint, CurrencyId, ForeignKey, UploadedFileId, UserId,
+};
 use lib::{
     integration::foreign_key::add_foreign_key_if_not_exists,
     middleware::auth::graphql::confirm_authentication, utils::custom_error::ExtendedError,
 };
+use surrealdb::RecordId;
 use surrealdb::{engine::remote::ws::Client as SurrealClient, Surreal};
 
+use crate::graphql::schemas::shared::{
+    Ratecard, RatecardInput, RatecardInputMetadata, ServiceRate, ServiceRateInput,
+    ServiceRateInputMetadata, ServiceRequest, ServiceRequestInput, ServiceRequestInputMetadata,
+};
 use crate::graphql::schemas::user::{UserProfessionalInfo, UserProfessionalInfoInput};
 use crate::graphql::schemas::{blog, shared, user};
 
@@ -45,7 +52,7 @@ impl Mutation {
 
         let authorization_constraint = AuthorizationConstraint {
             permissions: vec!["write:professional_details".into()],
-            privilege: Some(AdminPrivilege::SuperAdmin),
+            privilege: AdminPrivilege::SuperAdmin,
         };
         let authorized =
             confirm_authorization(authenticated_ref, &authorization_constraint, headers).await?;
@@ -60,11 +67,11 @@ impl Mutation {
             foreign_key: authenticated_ref.sub.to_owned(),
         };
 
-        let id_added =
-            add_foreign_key_if_not_exists::<Extension<Arc<Surreal<SurrealClient>>>, User>(
-                db, user_fk,
-            )
-            .await;
+        let id_added = add_foreign_key_if_not_exists::<
+            Extension<Arc<Surreal<SurrealClient>>>,
+            UserId,
+        >(db, user_fk)
+        .await;
 
         if id_added.is_none() {
             tracing::error!("Failed to add user_id");
@@ -124,7 +131,7 @@ impl Mutation {
 
         let authorization_constraint = AuthorizationConstraint {
             permissions: vec!["write:service".into()],
-            privilege: Some(AdminPrivilege::SuperAdmin),
+            privilege: AdminPrivilege::SuperAdmin,
         };
         let authorized =
             confirm_authorization(authenticated_ref, &authorization_constraint, headers).await?;
@@ -141,7 +148,7 @@ impl Mutation {
 
         let added_user_id = add_foreign_key_if_not_exists::<
             Extension<Arc<Surreal<SurrealClient>>>,
-            User,
+            UserId,
         >(db, user_fk)
         .await;
 
@@ -203,7 +210,7 @@ impl Mutation {
 
         let authorization_constraint = AuthorizationConstraint {
             permissions: vec!["write:portfolio".into()],
-            privilege: Some(AdminPrivilege::SuperAdmin),
+            privilege: AdminPrivilege::SuperAdmin,
         };
         let authorized =
             confirm_authorization(authenticated_ref, &authorization_constraint, headers).await?;
@@ -218,11 +225,11 @@ impl Mutation {
             foreign_key: authenticated_ref.sub.to_owned(),
         };
 
-        let id_added =
-            add_foreign_key_if_not_exists::<Extension<Arc<Surreal<SurrealClient>>>, User>(
-                db, user_fk,
-            )
-            .await;
+        let id_added = add_foreign_key_if_not_exists::<
+            Extension<Arc<Surreal<SurrealClient>>>,
+            UserId,
+        >(db, user_fk)
+        .await;
 
         if id_added.is_none() {
             tracing::error!("Failed to add user_id");
@@ -297,7 +304,7 @@ impl Mutation {
 
         let authorization_constraint = AuthorizationConstraint {
             permissions: vec!["write:resume_item".into()],
-            privilege: Some(AdminPrivilege::SuperAdmin),
+            privilege: AdminPrivilege::SuperAdmin,
         };
         let authorized =
             confirm_authorization(authenticated_ref, &authorization_constraint, headers).await?;
@@ -312,11 +319,11 @@ impl Mutation {
             foreign_key: authenticated_ref.sub.to_owned(),
         };
 
-        let id_added =
-            add_foreign_key_if_not_exists::<Extension<Arc<Surreal<SurrealClient>>>, User>(
-                db, user_fk,
-            )
-            .await;
+        let id_added = add_foreign_key_if_not_exists::<
+            Extension<Arc<Surreal<SurrealClient>>>,
+            UserId,
+        >(db, user_fk)
+        .await;
 
         if id_added.is_none() {
             tracing::debug!("Failed to add user_id");
@@ -387,11 +394,10 @@ impl Mutation {
 
         let authenticated = confirm_authentication(headers).await?;
         let authenticated_ref = &authenticated;
-        tracing::debug!("authentication went through: {:?}", authenticated);
 
         let authorization_constraint = AuthorizationConstraint {
             permissions: vec!["write:skill".into()],
-            privilege: Some(AdminPrivilege::SuperAdmin),
+            privilege: AdminPrivilege::SuperAdmin,
         };
         let authorized =
             confirm_authorization(authenticated_ref, &authorization_constraint, headers).await?;
@@ -406,11 +412,11 @@ impl Mutation {
             foreign_key: authenticated_ref.sub.to_owned(),
         };
 
-        let id_added =
-            add_foreign_key_if_not_exists::<Extension<Arc<Surreal<SurrealClient>>>, User>(
-                db, user_fk,
-            )
-            .await;
+        let id_added = add_foreign_key_if_not_exists::<
+            Extension<Arc<Surreal<SurrealClient>>>,
+            UserId,
+        >(db, user_fk)
+        .await;
 
         if id_added.is_none() {
             tracing::error!("Failed to add user_id");
@@ -471,7 +477,7 @@ impl Mutation {
 
         let authorization_constraint = AuthorizationConstraint {
             permissions: vec!["write:blog_post".into()],
-            privilege: Some(AdminPrivilege::Admin),
+            privilege: AdminPrivilege::Admin,
         };
         let authorized =
             confirm_authorization(authenticated_ref, &authorization_constraint, headers).await?;
@@ -494,7 +500,7 @@ impl Mutation {
 
         let added_user = add_foreign_key_if_not_exists::<
             Extension<Arc<Surreal<SurrealClient>>>,
-            User,
+            UserId,
         >(db, user_fk)
         .await
         .ok_or_else(|| {
@@ -508,7 +514,7 @@ impl Mutation {
 
         let added_file = add_foreign_key_if_not_exists::<
             Extension<Arc<Surreal<SurrealClient>>>,
-            UploadedFile,
+            UploadedFileId,
         >(db, content_file_fk)
         .await
         .ok_or_else(|| {
@@ -528,7 +534,10 @@ impl Mutation {
             BEGIN TRANSACTION;
             LET $user = (SELECT VALUE id FROM type::table($table) WHERE user_id = $user_id LIMIT 1);
 
-            LET $blog_post = (RELATE $user->blog_post->$user CONTENT $blog_post_input RETURN AFTER)[0];
+            LET $blog_post = (CREATE blog_post CONTENT $blog_post_input RETURN AFTER)[0];
+            LET $blog_post_id = (SELECT VALUE id FROM $blog_post);
+            RELATE $user->wrote->$blog_post_id CONTENT $blog_post_input;
+
             RETURN $blog_post;
             COMMIT TRANSACTION;
             ",
@@ -585,11 +594,11 @@ impl Mutation {
             foreign_key: authenticated_ref.sub.to_owned(),
         };
 
-        let id_added =
-            add_foreign_key_if_not_exists::<Extension<Arc<Surreal<SurrealClient>>>, User>(
-                db, user_fk,
-            )
-            .await;
+        let id_added = add_foreign_key_if_not_exists::<
+            Extension<Arc<Surreal<SurrealClient>>>,
+            UserId,
+        >(db, user_fk)
+        .await;
 
         if id_added.is_none() {
             tracing::error!("Failed to add user_id");
@@ -677,11 +686,11 @@ impl Mutation {
             foreign_key: authenticated_ref.sub.to_owned(),
         };
 
-        let id_added =
-            add_foreign_key_if_not_exists::<Extension<Arc<Surreal<SurrealClient>>>, User>(
-                db, user_fk,
-            )
-            .await;
+        let id_added = add_foreign_key_if_not_exists::<
+            Extension<Arc<Surreal<SurrealClient>>>,
+            UserId,
+        >(db, user_fk)
+        .await;
 
         if id_added.is_none() {
             tracing::error!("Failed to add user_id");
@@ -769,11 +778,11 @@ impl Mutation {
             foreign_key: authenticated_ref.sub.to_owned(),
         };
 
-        let id_added =
-            add_foreign_key_if_not_exists::<Extension<Arc<Surreal<SurrealClient>>>, User>(
-                db, user_fk,
-            )
-            .await;
+        let id_added = add_foreign_key_if_not_exists::<
+            Extension<Arc<Surreal<SurrealClient>>>,
+            UserId,
+        >(db, user_fk)
+        .await;
 
         if id_added.is_none() {
             tracing::error!("Failed to add user_id");
@@ -857,11 +866,11 @@ impl Mutation {
             foreign_key: authenticated_ref.sub.to_owned(),
         };
 
-        let id_added =
-            add_foreign_key_if_not_exists::<Extension<Arc<Surreal<SurrealClient>>>, User>(
-                db, user_fk,
-            )
-            .await;
+        let id_added = add_foreign_key_if_not_exists::<
+            Extension<Arc<Surreal<SurrealClient>>>,
+            UserId,
+        >(db, user_fk)
+        .await;
 
         if id_added.is_none() {
             tracing::error!("Failed to add user_id");
@@ -965,7 +974,7 @@ impl Mutation {
 
         let authorization_constraint = AuthorizationConstraint {
             permissions: vec!["write:blog_post".into()],
-            privilege: Some(AdminPrivilege::Admin),
+            privilege: AdminPrivilege::Admin,
         };
         let authorized =
             confirm_authorization(authenticated_ref, &authorization_constraint, headers).await?;
@@ -989,6 +998,304 @@ impl Mutation {
             None => Err(
                 ExtendedError::new("Blog post not found", StatusCode::NOT_FOUND.as_str()).build(),
             ),
+        }
+    }
+
+    /// Create a new ratecard
+    pub async fn create_ratecard(
+        &self,
+        ctx: &Context<'_>,
+        ratecard_input: RatecardInput,
+        ratecard_input_metadata: RatecardInputMetadata,
+    ) -> async_graphql::Result<Ratecard> {
+        let db = ctx
+            .data::<Extension<Arc<Surreal<SurrealClient>>>>()
+            .map_err(|e| {
+                tracing::error!("Error Surreal Client: {:?}", e);
+                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str())
+                    .build()
+            })?;
+
+        let headers = ctx.data::<HeaderMap>().map_err(|e| {
+            tracing::error!("Error HeaderMap: {:?}", e);
+            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
+        })?;
+
+        let authenticated = confirm_authentication(headers).await?;
+        let authenticated_ref = &authenticated;
+
+        let authorization_constraint = AuthorizationConstraint {
+            permissions: vec!["write:ratecard".into()],
+            privilege: AdminPrivilege::SuperAdmin,
+        };
+        let authorized =
+            confirm_authorization(authenticated_ref, &authorization_constraint, headers).await?;
+
+        if !authorized {
+            return Err(ExtendedError::new("Forbidden", StatusCode::FORBIDDEN.as_str()).build());
+        }
+
+        let user_fk = ForeignKey {
+            table: "user_id".to_string(),
+            column: "user_id".to_string(),
+            foreign_key: authenticated_ref.sub.to_owned(),
+        };
+
+        let id_added = add_foreign_key_if_not_exists::<
+            Extension<Arc<Surreal<SurrealClient>>>,
+            UserId,
+        >(db, user_fk)
+        .await;
+
+        if id_added.is_none() {
+            tracing::error!("Failed to add user_id");
+            return Err(ExtendedError::new(
+                "Something went wrong",
+                StatusCode::INTERNAL_SERVER_ERROR.as_str(),
+            )
+            .build());
+        }
+
+        let mut database_transaction = db
+            .query(
+                "
+                BEGIN TRANSACTION;
+                LET $created_ratecard = CREATE ratecard CONTENT $ratecard_input;
+                LET $created_ratecard_id = (SELECT VALUE id FROM $created_ratecard);
+
+                FOR $service IN $ratecard_input_metadata.service_ids {
+                   	RELATE $created_ratecard_id -> contains -> $service;
+                };
+                RETURN $created_ratecard;
+                COMMIT TRANSACTION;
+            ",
+            )
+            .bind(("ratecard_input", ratecard_input))
+            .bind(("ratecard_input_metadata", ratecard_input_metadata))
+            .await
+            .map_err(|e| {
+                tracing::debug!("DB Query Error: {}", e);
+
+                ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
+            })?;
+
+        let response: Option<Ratecard> = database_transaction.take(0).map_err(|e| {
+            tracing::error!("Deserialization Error: {:?}", e);
+
+            ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
+        })?;
+
+        match response {
+            Some(ratecard) => Ok(ratecard),
+            None => Err(ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()),
+        }
+    }
+
+    /// Create a new service_request
+    pub async fn create_service_request(
+        &self,
+        ctx: &Context<'_>,
+        service_request_input: ServiceRequestInput,
+        service_request_input_metadata: ServiceRequestInputMetadata,
+    ) -> async_graphql::Result<ServiceRequest> {
+        let db = ctx
+            .data::<Extension<Arc<Surreal<SurrealClient>>>>()
+            .map_err(|e| {
+                tracing::error!("Error Surreal Client: {:?}", e);
+                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str())
+                    .build()
+            })?;
+
+        let headers = ctx.data::<HeaderMap>().map_err(|e| {
+            tracing::error!("Error HeaderMap: {:?}", e);
+            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
+        })?;
+
+        let authenticated = confirm_authentication(headers).await?;
+        let authenticated_ref = &authenticated;
+
+        let authorization_constraint = AuthorizationConstraint {
+            permissions: vec!["write:service_request".into()],
+            privilege: AdminPrivilege::None,
+        };
+        let authorized =
+            confirm_authorization(authenticated_ref, &authorization_constraint, headers).await?;
+
+        if !authorized {
+            return Err(ExtendedError::new("Forbidden", StatusCode::FORBIDDEN.as_str()).build());
+        }
+
+        let user_fk = ForeignKey {
+            table: "user_id".to_string(),
+            column: "user_id".to_string(),
+            foreign_key: authenticated_ref.sub.to_owned(),
+        };
+
+        let id_added = add_foreign_key_if_not_exists::<
+            Extension<Arc<Surreal<SurrealClient>>>,
+            UserId,
+        >(db, user_fk)
+        .await;
+
+        if id_added.is_none() {
+            tracing::error!("Failed to add user_id");
+            return Err(ExtendedError::new(
+                "Something went wrong",
+                StatusCode::INTERNAL_SERVER_ERROR.as_str(),
+            )
+            .build());
+        }
+
+        let mut database_transaction = db
+            .query(
+                "
+                BEGIN TRANSACTION;
+                LET $created_service_request = CREATE ratecard CONTENT $service_request_input;
+                LET $created_service_request_id = (SELECT VALUE id FROM $created_service_request);
+
+                FOR $service IN $service_request_input_metadata.service_ids {
+                   	RELATE $created_service_request_id -> contains -> $service;
+                };
+                RETURN $created_service_request;
+                COMMIT TRANSACTION;
+            ",
+            )
+            .bind(("service_request_input", service_request_input))
+            .bind((
+                "service_request_input_metadata",
+                service_request_input_metadata,
+            ))
+            .await
+            .map_err(|e| {
+                tracing::debug!("DB Query Error: {}", e);
+
+                ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
+            })?;
+
+        let response: Option<ServiceRequest> = database_transaction.take(0).map_err(|e| {
+            tracing::error!("Deserialization Error: {:?}", e);
+
+            ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
+        })?;
+
+        match response {
+            Some(service_request) => Ok(service_request),
+            None => Err(ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()),
+        }
+    }
+
+    /// Create a new service rate
+    pub async fn create_service_rate(
+        &self,
+        ctx: &Context<'_>,
+        mut service_rate_input: ServiceRateInput,
+        service_rate_input_metadata: ServiceRateInputMetadata,
+    ) -> async_graphql::Result<ServiceRate> {
+        let db = ctx
+            .data::<Extension<Arc<Surreal<SurrealClient>>>>()
+            .map_err(|e| {
+                tracing::error!("Error Surreal Client: {:?}", e);
+                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str())
+                    .build()
+            })?;
+
+        let headers = ctx.data::<HeaderMap>().map_err(|e| {
+            tracing::error!("Error HeaderMap: {:?}", e);
+            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
+        })?;
+
+        let authenticated = confirm_authentication(headers).await?;
+        let authenticated_ref = &authenticated;
+
+        let authorization_constraint = AuthorizationConstraint {
+            permissions: vec!["write:service_rate".into()],
+            privilege: AdminPrivilege::None,
+        };
+        let authorized =
+            confirm_authorization(authenticated_ref, &authorization_constraint, headers).await?;
+
+        if !authorized {
+            return Err(ExtendedError::new("Forbidden", StatusCode::FORBIDDEN.as_str()).build());
+        }
+
+        let user_fk = ForeignKey {
+            table: "user_id".into(),
+            column: "user_id".into(),
+            foreign_key: authenticated_ref.sub.to_owned(),
+        };
+
+        let id_added = add_foreign_key_if_not_exists::<
+            Extension<Arc<Surreal<SurrealClient>>>,
+            UserId,
+        >(db, user_fk)
+        .await;
+
+        if id_added.is_none() {
+            tracing::error!("Failed to add user_id");
+            return Err(ExtendedError::new(
+                "Something went wrong",
+                StatusCode::INTERNAL_SERVER_ERROR.as_str(),
+            )
+            .build());
+        }
+
+        let currency_fk = ForeignKey {
+            table: "currency_id".into(),
+            column: "currency_id".into(),
+            foreign_key: service_rate_input_metadata.currency_id.clone(),
+        };
+
+        let currency_added = add_foreign_key_if_not_exists::<
+            Extension<Arc<Surreal<SurrealClient>>>,
+            CurrencyId,
+        >(db, currency_fk)
+        .await;
+
+        if currency_added.is_none() {
+            tracing::error!("Failed to add currency_id");
+            return Err(ExtendedError::new(
+                "Something went wrong",
+                StatusCode::INTERNAL_SERVER_ERROR.as_str(),
+            )
+            .build());
+        }
+
+        service_rate_input.service = Some(RecordId::from_table_key(
+            "service",
+            &service_rate_input_metadata.service_id,
+        ));
+        service_rate_input.currency_id = Some(currency_added.unwrap().id);
+
+        let mut database_transaction = db
+            .query(
+                "
+                BEGIN TRANSACTION;
+                LET $created_service_rate = CREATE rate CONTENT $service_rate_input;
+
+                LET $rate_id = SELECT VALUE id FROM ONLY $created_service_rate LIMIT 1;
+                LET $expanded_rate = SELECT * FROM ONLY $rate_id FETCH service, currency_id;
+
+                RETURN $expanded_rate;
+                COMMIT TRANSACTION;
+            ",
+            )
+            .bind(("service_rate_input", service_rate_input))
+            .await
+            .map_err(|e| {
+                tracing::debug!("DB Query Error: {}", e);
+
+                ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
+            })?;
+
+        let response: Option<ServiceRate> = database_transaction.take(0).map_err(|e| {
+            tracing::error!("Deserialization Error: {:?}", e);
+
+            ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
+        })?;
+
+        match response {
+            Some(service_rate) => Ok(service_rate),
+            None => Err(ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()),
         }
     }
 }

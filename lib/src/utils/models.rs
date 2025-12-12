@@ -17,14 +17,21 @@ pub struct ForeignKey {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
-pub struct User {
+pub struct UserId {
     #[graphql(skip)]
     pub id: RecordId,
     pub user_id: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
-pub struct UploadedFile {
+pub struct CurrencyId {
+    #[graphql(skip)]
+    pub id: RecordId,
+    pub currency_id: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
+pub struct UploadedFileId {
     #[graphql(skip)]
     pub id: RecordId,
     pub file_id: String,
@@ -33,13 +40,14 @@ pub struct UploadedFile {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AuthorizationConstraint {
     pub permissions: Vec<String>,
-    pub privilege: Option<AdminPrivilege>,
+    pub privilege: AdminPrivilege,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Copy, Eq)]
 pub enum AdminPrivilege {
     Admin,
     SuperAdmin,
+    None,
 }
 
 impl TryFrom<i32> for AdminPrivilege {
@@ -49,6 +57,7 @@ impl TryFrom<i32> for AdminPrivilege {
         match value {
             0 => Ok(AdminPrivilege::Admin),
             1 => Ok(AdminPrivilege::SuperAdmin),
+            2 => Ok(AdminPrivilege::None),
             _ => Err("Invalid status"),
         }
     }
@@ -59,6 +68,7 @@ impl From<AdminPrivilege> for i32 {
         match status {
             AdminPrivilege::Admin => 0,
             AdminPrivilege::SuperAdmin => 1,
+            AdminPrivilege::None => 2,
         }
     }
 }
