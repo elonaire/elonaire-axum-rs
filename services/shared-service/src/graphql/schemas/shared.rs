@@ -1,6 +1,6 @@
 use async_graphql::{ComplexObject, Enum, InputObject, SimpleObject};
-use lib::utils::models::CurrencyId;
-use lib::utils::serialization::{convert_float_to_string, deserialize_float, serialize_float};
+use lib::utils::models::{CurrencyId, UploadedFileId};
+use lib::utils::serialization::convert_float_to_string;
 use serde::{Deserialize, Serialize};
 use surrealdb::RecordId;
 
@@ -126,6 +126,7 @@ impl ServiceRate {
         self.id.key().to_string()
     }
 
+    // To prevent loss of precision during serialization and deserialization
     async fn base_rate(&self) -> String {
         convert_float_to_string(self.base_rate)
     }
@@ -147,6 +148,7 @@ pub struct Ratecard {
     #[graphql(skip)]
     pub id: RecordId,
     pub name: String,
+    pub services: Vec<UserService>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -160,11 +162,16 @@ impl Ratecard {
 
 #[derive(Clone, Debug, Serialize, Deserialize, InputObject)]
 pub struct ServiceRequestInput {
-    pub name: String,
+    pub description: String,
+    #[graphql(skip)]
+    pub supporting_docs: Vec<RecordId>,
+    pub start_date: String,
+    pub end_date: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, InputObject)]
 pub struct ServiceRequestInputMetadata {
+    pub supporting_docs_file_ids: Vec<String>,
     pub service_ids: Vec<String>,
 }
 
@@ -174,7 +181,7 @@ pub struct ServiceRequest {
     #[graphql(skip)]
     pub id: RecordId,
     pub description: String,
-    pub supporting_docs: Vec<String>,
+    pub supporting_docs: Vec<UploadedFileId>,
     pub start_date: String,
     pub end_date: String,
     pub created_at: String,
@@ -186,4 +193,16 @@ impl ServiceRequest {
     async fn id(&self) -> String {
         self.id.key().to_string()
     }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, Enum, Copy, Eq, PartialEq)]
+pub enum BillingPeriod {
+    #[graphql(name = "Hourly")]
+    Hourly,
+    #[graphql(name = "Weekly")]
+    Weekly,
+    #[graphql(name = "Monthly")]
+    Monthly,
+    #[graphql(name = "Annual")]
+    Annual,
 }

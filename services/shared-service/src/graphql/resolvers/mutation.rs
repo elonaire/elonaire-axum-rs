@@ -67,13 +67,13 @@ impl Mutation {
             foreign_key: authenticated_ref.sub.to_owned(),
         };
 
-        let id_added = add_foreign_key_if_not_exists::<
+        let added_id = add_foreign_key_if_not_exists::<
             Extension<Arc<Surreal<SurrealClient>>>,
             UserId,
         >(db, user_fk)
         .await;
 
-        if id_added.is_none() {
+        if added_id.is_none() {
             tracing::error!("Failed to add user_id");
             return Err(ExtendedError::new(
                 "Something went wrong!",
@@ -225,13 +225,13 @@ impl Mutation {
             foreign_key: authenticated_ref.sub.to_owned(),
         };
 
-        let id_added = add_foreign_key_if_not_exists::<
+        let added_id = add_foreign_key_if_not_exists::<
             Extension<Arc<Surreal<SurrealClient>>>,
             UserId,
         >(db, user_fk)
         .await;
 
-        if id_added.is_none() {
+        if added_id.is_none() {
             tracing::error!("Failed to add user_id");
             return Err(
                 ExtendedError::new("Invalid Input Data", StatusCode::BAD_REQUEST.as_str()).build(),
@@ -319,13 +319,13 @@ impl Mutation {
             foreign_key: authenticated_ref.sub.to_owned(),
         };
 
-        let id_added = add_foreign_key_if_not_exists::<
+        let added_id = add_foreign_key_if_not_exists::<
             Extension<Arc<Surreal<SurrealClient>>>,
             UserId,
         >(db, user_fk)
         .await;
 
-        if id_added.is_none() {
+        if added_id.is_none() {
             tracing::debug!("Failed to add user_id");
             return Err(ExtendedError::new(
                 "Something went wrong",
@@ -412,13 +412,13 @@ impl Mutation {
             foreign_key: authenticated_ref.sub.to_owned(),
         };
 
-        let id_added = add_foreign_key_if_not_exists::<
+        let added_id = add_foreign_key_if_not_exists::<
             Extension<Arc<Surreal<SurrealClient>>>,
             UserId,
         >(db, user_fk)
         .await;
 
-        if id_added.is_none() {
+        if added_id.is_none() {
             tracing::error!("Failed to add user_id");
             return Err(ExtendedError::new(
                 "Something went wrong",
@@ -594,13 +594,13 @@ impl Mutation {
             foreign_key: authenticated_ref.sub.to_owned(),
         };
 
-        let id_added = add_foreign_key_if_not_exists::<
+        let added_id = add_foreign_key_if_not_exists::<
             Extension<Arc<Surreal<SurrealClient>>>,
             UserId,
         >(db, user_fk)
         .await;
 
-        if id_added.is_none() {
+        if added_id.is_none() {
             tracing::error!("Failed to add user_id");
             return Err(ExtendedError::new(
                 "Something went wrong",
@@ -686,13 +686,13 @@ impl Mutation {
             foreign_key: authenticated_ref.sub.to_owned(),
         };
 
-        let id_added = add_foreign_key_if_not_exists::<
+        let added_id = add_foreign_key_if_not_exists::<
             Extension<Arc<Surreal<SurrealClient>>>,
             UserId,
         >(db, user_fk)
         .await;
 
-        if id_added.is_none() {
+        if added_id.is_none() {
             tracing::error!("Failed to add user_id");
             return Err(ExtendedError::new(
                 "Something went wrong",
@@ -778,13 +778,13 @@ impl Mutation {
             foreign_key: authenticated_ref.sub.to_owned(),
         };
 
-        let id_added = add_foreign_key_if_not_exists::<
+        let added_id = add_foreign_key_if_not_exists::<
             Extension<Arc<Surreal<SurrealClient>>>,
             UserId,
         >(db, user_fk)
         .await;
 
-        if id_added.is_none() {
+        if added_id.is_none() {
             tracing::error!("Failed to add user_id");
             return Err(ExtendedError::new(
                 "Something went wrong",
@@ -866,13 +866,13 @@ impl Mutation {
             foreign_key: authenticated_ref.sub.to_owned(),
         };
 
-        let id_added = add_foreign_key_if_not_exists::<
+        let added_id = add_foreign_key_if_not_exists::<
             Extension<Arc<Surreal<SurrealClient>>>,
             UserId,
         >(db, user_fk)
         .await;
 
-        if id_added.is_none() {
+        if added_id.is_none() {
             tracing::error!("Failed to add user_id");
             return Err(ExtendedError::new(
                 "Something went wrong",
@@ -1041,13 +1041,13 @@ impl Mutation {
             foreign_key: authenticated_ref.sub.to_owned(),
         };
 
-        let id_added = add_foreign_key_if_not_exists::<
+        let added_id = add_foreign_key_if_not_exists::<
             Extension<Arc<Surreal<SurrealClient>>>,
             UserId,
         >(db, user_fk)
         .await;
 
-        if id_added.is_none() {
+        if added_id.is_none() {
             tracing::error!("Failed to add user_id");
             return Err(ExtendedError::new(
                 "Something went wrong",
@@ -1064,7 +1064,8 @@ impl Mutation {
                 LET $created_ratecard_id = (SELECT VALUE id FROM $created_ratecard);
 
                 FOR $service IN $ratecard_input_metadata.service_ids {
-                   	RELATE $created_ratecard_id -> contains -> $service;
+                    LET $service_record = type::thing('service', $service);
+                   	RELATE $created_ratecard_id -> contains -> $service_record;
                 };
                 RETURN $created_ratecard;
                 COMMIT TRANSACTION;
@@ -1095,7 +1096,7 @@ impl Mutation {
     pub async fn create_service_request(
         &self,
         ctx: &Context<'_>,
-        service_request_input: ServiceRequestInput,
+        mut service_request_input: ServiceRequestInput,
         service_request_input_metadata: ServiceRequestInputMetadata,
     ) -> async_graphql::Result<ServiceRequest> {
         let db = ctx
@@ -1131,13 +1132,13 @@ impl Mutation {
             foreign_key: authenticated_ref.sub.to_owned(),
         };
 
-        let id_added = add_foreign_key_if_not_exists::<
+        let added_id = add_foreign_key_if_not_exists::<
             Extension<Arc<Surreal<SurrealClient>>>,
             UserId,
         >(db, user_fk)
         .await;
 
-        if id_added.is_none() {
+        if added_id.is_none() {
             tracing::error!("Failed to add user_id");
             return Err(ExtendedError::new(
                 "Something went wrong",
@@ -1146,17 +1147,45 @@ impl Mutation {
             .build());
         }
 
+        for file_id in &service_request_input_metadata.supporting_docs_file_ids {
+            let file_fk = ForeignKey {
+                table: "file_id".to_string(),
+                column: "file_id".to_string(),
+                foreign_key: file_id.to_owned(),
+            };
+
+            let added_file = add_foreign_key_if_not_exists::<
+                Extension<Arc<Surreal<SurrealClient>>>,
+                UploadedFileId,
+            >(db, file_fk)
+            .await;
+
+            if added_file.is_none() {
+                tracing::error!("Failed to add file_id");
+                return Err(ExtendedError::new(
+                    "Something went wrong",
+                    StatusCode::INTERNAL_SERVER_ERROR.as_str(),
+                )
+                .build());
+            }
+
+            service_request_input
+                .supporting_docs
+                .push(added_file.unwrap().id);
+        }
+
         let mut database_transaction = db
             .query(
                 "
                 BEGIN TRANSACTION;
-                LET $created_service_request = CREATE ratecard CONTENT $service_request_input;
-                LET $created_service_request_id = (SELECT VALUE id FROM $created_service_request);
+                LET $created_service_request = CREATE service_request CONTENT $service_request_input;
+                LET $created_service_request_id = (SELECT VALUE id FROM ONLY $created_service_request LIMIT 1);
 
                 FOR $service IN $service_request_input_metadata.service_ids {
-                   	RELATE $created_service_request_id -> contains -> $service;
+                    LET $service_record = type::thing('service', $service);
+                   	RELATE $created_service_request_id -> contains -> $service_record;
                 };
-                RETURN $created_service_request;
+                RETURN (SELECT * FROM ONLY $created_service_request_id FETCH supporting_docs);
                 COMMIT TRANSACTION;
             ",
             )
@@ -1224,13 +1253,13 @@ impl Mutation {
             foreign_key: authenticated_ref.sub.to_owned(),
         };
 
-        let id_added = add_foreign_key_if_not_exists::<
+        let added_id = add_foreign_key_if_not_exists::<
             Extension<Arc<Surreal<SurrealClient>>>,
             UserId,
         >(db, user_fk)
         .await;
 
-        if id_added.is_none() {
+        if added_id.is_none() {
             tracing::error!("Failed to add user_id");
             return Err(ExtendedError::new(
                 "Something went wrong",

@@ -1,18 +1,18 @@
 use std::{env, sync::Arc};
 
-use async_graphql::{Context, Error, Object};
+use async_graphql::{Context, Object};
 use axum::Extension;
 use hyper::{
     header::{AUTHORIZATION, COOKIE},
     HeaderMap, StatusCode,
 };
 use reqwest::Client;
-use surrealdb::{engine::remote::ws::Client as SurrealClient, Surreal};
+use surrealdb::{engine::remote::ws::Client as SurrealClient, RecordId, Surreal};
 use tonic::transport::Channel;
 
 use crate::graphql::schemas::{
     blog::{self, BlogPost, BlogStatus},
-    shared::{self},
+    shared::{self, BillingPeriod, Ratecard},
     user::{self, PublicSiteResources, UserResources},
 };
 
@@ -25,6 +25,7 @@ use lib::{
         custom_error::ExtendedError,
         grpc::{create_grpc_client, AuthMetaData},
         models::UploadedFileId,
+        serialization::convert_float_to_string,
     },
 };
 
@@ -51,12 +52,12 @@ impl Query {
             .bind(("status", status))
             .await
             .map_err(|e| {
-                tracing::debug!("DB Query error: {}", e);
-                Error::new("Internal Server Error".to_string())
+                tracing::error!("DB Query error: {}", e);
+                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
             })?;
 
         let result: Vec<blog::BlogPost> = query_result.take(0).map_err(|e| {
-            tracing::debug!("blog_posts deserialization error: {}", e);
+            tracing::error!("blog_posts deserialization error: {}", e);
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
@@ -90,13 +91,13 @@ impl Query {
             .bind(("external_user_id", authenticated_ref.sub.to_owned()))
             .await
             .map_err(|e| {
-                tracing::debug!("DB Query error: {}", e);
-                Error::new("Internal Server Error".to_string())
+                tracing::error!("DB Query error: {}", e);
+                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
             })?;
 
         let blog_posts: Vec<blog::BlogPost> = query_results.take(0).map_err(|e| {
-            tracing::debug!("blog_posts deserialization error: {}", e);
-            Error::new("Internal Server Error".to_string())
+            tracing::error!("blog_posts deserialization error: {}", e);
+            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
         let user_resources = UserResources { blog_posts };
@@ -127,35 +128,35 @@ impl Query {
             .query("SELECT * FROM service")
             .await
             .map_err(|e| {
-                tracing::debug!("DB Query error: {}", e);
-                Error::new("Internal Server Error".to_string())
+                tracing::error!("DB Query error: {}", e);
+                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
             })?;
 
         let blog_posts: Vec<blog::BlogPost> = query_results.take(0).map_err(|e| {
-            tracing::debug!("blog_posts deserialization error: {}", e);
-            Error::new("Internal Server Error".to_string())
+            tracing::error!("blog_posts deserialization error: {}", e);
+            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
         let professional_info: Vec<user::UserProfessionalInfo> =
             query_results.take(1).map_err(|e| {
-                tracing::debug!("professional_info deserialization error: {}", e);
-                Error::new("Internal Server Error".to_string())
+                tracing::error!("professional_info deserialization error: {}", e);
+                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str())
+                    .build()
             })?;
         let portfolio: Vec<user::UserPortfolio> = query_results.take(2).map_err(|e| {
-            tracing::debug!("query_results: {:?}", query_results);
-            tracing::debug!("portfolio deserialization error: {}", e);
-            Error::new("Internal Server Error".to_string())
+            tracing::error!("portfolio deserialization error: {}", e);
+            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
         let resume: Vec<user::UserResume> = query_results.take(3).map_err(|e| {
-            tracing::debug!("resume deserialization error: {}", e);
-            Error::new("Internal Server Error".to_string())
+            tracing::error!("resume deserialization error: {}", e);
+            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
         let skills: Vec<user::UserSkill> = query_results.take(4).map_err(|e| {
-            tracing::debug!("skills deserialization error: {}", e);
-            Error::new("Internal Server Error".to_string())
+            tracing::error!("skills deserialization error: {}", e);
+            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
         let services: Vec<user::UserService> = query_results.take(5).map_err(|e| {
-            tracing::debug!("services deserialization error: {}", e);
-            Error::new("Internal Server Error".to_string())
+            tracing::error!("services deserialization error: {}", e);
+            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
         let user_resources = PublicSiteResources {
@@ -325,13 +326,101 @@ impl Query {
         let _authenticated = confirm_authentication(headers).await?;
 
         // fetch all messages in DB
-        let mut query_results = db
-            .query("SELECT * FROM message")
-            .await
-            .map_err(|e| Error::new(e.to_string()))?;
+        let mut query_results = db.query("SELECT * FROM message").await.map_err(|e| {
+            tracing::error!("Query Error: {:?}", e);
+            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
+        })?;
 
-        let messages: Vec<shared::Message> = query_results.take(0)?;
+        let messages: Vec<shared::Message> = query_results.take(0).map_err(|e| {
+            tracing::error!("messages deserialization error: {}", e);
+            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
+        })?;
 
         Ok(messages)
+    }
+
+    pub async fn fetch_billing_rate(
+        &self,
+        ctx: &Context<'_>,
+        billing_period: BillingPeriod,
+        service_ids: Vec<String>,
+    ) -> async_graphql::Result<String> {
+        let db = ctx
+            .data::<Extension<Arc<Surreal<SurrealClient>>>>()
+            .map_err(|e| {
+                tracing::error!("Error Surreal Client: {:?}", e);
+                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str())
+                    .build()
+            })?;
+
+        let service_record_ids = service_ids
+            .iter()
+            .map(|service_id| RecordId::from_table_key("service", service_id))
+            .collect::<Vec<RecordId>>();
+
+        // fetch all messages in DB
+        let mut query_results = db
+            .query(
+                r#"
+                BEGIN TRANSACTION;
+                LET $billing_rates = (SELECT service.title AS service_title, service.id AS service_id, base_rate AS hourly_rate, base_rate * hour_week AS weekly_rate, base_rate * hour_week * 4 AS monthly_rate, base_rate * hour_week * 4 * 12 AS annual_rate FROM rate WHERE service.id IN $service_record_ids GROUP BY service_id);
+
+                RETURN IF $billing_period = 'Weekly' {
+                    math::mean($billing_rates.map(|$billing_rate| $billing_rate.weekly_rate))
+                } ELSE IF $billing_period = 'Monthly' {
+                    math::mean($billing_rates.map(|$billing_rate| $billing_rate.monthly_rate))
+                } ELSE IF $billing_period = 'Annual' {
+                    math::mean($billing_rates.map(|$billing_rate| $billing_rate.annual_rate))
+                } ELSE {
+                    math::mean($billing_rates.map(|$billing_rate| $billing_rate.hourly_rate))
+                };
+
+                COMMIT TRANSACTION;
+                "#
+            )
+            .bind(("billing_period", billing_period))
+            .bind(("service_record_ids", service_record_ids))
+            .await
+            .map_err(|e| {
+                tracing::error!("Query Error: {:?}", e);
+                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
+            })?;
+
+        let response: Option<f64> = query_results.take(0).map_err(|e| {
+            tracing::error!("billing rate deserialization error: {}", e);
+            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
+        })?;
+
+        match response {
+            Some(billing_rate) => Ok(convert_float_to_string(billing_rate)),
+            None => Err(ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()),
+        }
+    }
+
+    pub async fn fetch_ratecards(&self, ctx: &Context<'_>) -> async_graphql::Result<Vec<Ratecard>> {
+        let db = ctx
+            .data::<Extension<Arc<Surreal<SurrealClient>>>>()
+            .map_err(|e| {
+                tracing::error!("Error Surreal Client: {:?}", e);
+                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str())
+                    .build()
+            })?;
+
+        // fetch all ratecards in DB
+        let mut query_results = db
+            .query("SELECT *, ->contains->service.* AS services FROM ratecard")
+            .await
+            .map_err(|e| {
+                tracing::error!("Query Error: {:?}", e);
+                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str())
+                    .build()
+            })?;
+
+        let ratecards: Vec<Ratecard> = query_results.take(0).map_err(|e| {
+            tracing::error!("ratecards deserialization error: {}", e);
+            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
+        })?;
+
+        Ok(ratecards)
     }
 }

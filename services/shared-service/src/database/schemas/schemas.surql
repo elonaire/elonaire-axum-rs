@@ -265,7 +265,7 @@ DEFINE FIELD updated_at ON TABLE ratecard TYPE datetime
 -- Relationship between service_request and service.
 DEFINE TABLE service_request SCHEMAFULL TYPE NORMAL;
 DEFINE FIELD description ON TABLE service_request TYPE string;
-DEFINE FIELD supporting_docs ON TABLE service_request VALUE <array<record<file_id>>>$value;
+DEFINE FIELD OVERWRITE supporting_docs ON TABLE service_request TYPE array<record<file_id>>;
 DEFINE FIELD start_date ON TABLE service_request VALUE <datetime>$value;
 DEFINE FIELD end_date ON TABLE service_request VALUE <datetime>$value;
 DEFINE FIELD created_at ON TABLE service_request TYPE datetime
