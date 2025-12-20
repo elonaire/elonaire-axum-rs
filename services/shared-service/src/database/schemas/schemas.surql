@@ -17,19 +17,19 @@ DEFINE FIELD currency_id ON TABLE currency_id TYPE string;
 DEFINE INDEX currencyIndex ON TABLE currency_id COLUMNS currency_id UNIQUE;
 
 -- A schema-full professional_details table.
-DEFINE TABLE professional_details SCHEMAFULL TYPE NORMAL;
+DEFINE TABLE OVERWRITE professional_details SCHEMAFULL TYPE NORMAL;
 -- define some fields.
 DEFINE FIELD occupation ON TABLE professional_details TYPE string;
 DEFINE FIELD active ON TABLE professional_details TYPE bool
   DEFAULT false;
-DEFINE EVENT enforce_single_true ON professional_details WHEN $event = 'CREATE' OR $event = 'UPDATE' THEN {
-    IF $after.active {
-        LET $existing_true = SELECT * FROM professional_details WHERE active = true;
-        IF array::len($existing_true) > 0 {
-            THROW 'You have an active professional detail already. Please deactivate it first.';
-        };
-    };
-};
+-- DEFINE EVENT enforce_single_true ON professional_details WHEN $event = 'CREATE' OR $event = 'UPDATE' THEN {
+--     IF $after.active {
+--         LET $existing_true = SELECT * FROM professional_details WHERE active = true;
+--         IF array::len($existing_true) > 0 {
+--             THROW 'You have an active professional detail already. Please deactivate it first.';
+--         };
+--     };
+-- };
 DEFINE INDEX occupationIndex ON TABLE professional_details COLUMNS occupation UNIQUE;
 DEFINE FIELD description ON TABLE professional_details TYPE string;
 -- I had to cast this way because the client submits a datetime string and explictly specifying datetime type gives an error

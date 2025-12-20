@@ -185,11 +185,6 @@ pub enum UserResumeSection {
     References,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, InputObject)]
-pub struct ResumeAchievementInput {
-    pub description: String,
-}
-
 #[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
 #[graphql(complex)]
 pub struct ResumeAchievement {

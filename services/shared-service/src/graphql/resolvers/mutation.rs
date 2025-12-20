@@ -284,7 +284,7 @@ impl Mutation {
         &self,
         ctx: &Context<'_>,
         resume_item: user::UserResumeInput,
-        achievements: Vec<user::ResumeAchievementInput>,
+        achievements: Vec<String>,
     ) -> async_graphql::Result<user::UserResume> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
@@ -341,7 +341,9 @@ impl Mutation {
             LET $resume = (SELECT VALUE id FROM (CREATE resume CONTENT $resume_item_input RETURN AFTER));
 
             FOR $achievement IN $achievements {
-                RELATE $resume->achievement->$resume CONTENT $achievement;
+                RELATE $resume->achievement->$resume CONTENT {
+                    description: $achievement,
+                };
             };
             LET $resume = SELECT *, ->achievement.* AS achievements FROM ONLY $resume LIMIT 1;
             RETURN $resume;
