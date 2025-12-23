@@ -205,6 +205,7 @@ impl ResumeAchievement {
 pub struct UserSkillInput {
     pub thumbnail: String,
     pub name: String,
+    pub description: String,
     pub level: Option<UserSkillLevel>,
     pub r#type: UserSkillType,
     pub start_date: String,
@@ -217,6 +218,7 @@ pub struct UserSkill {
     pub id: RecordId,
     pub thumbnail: String,
     pub name: String,
+    pub description: String,
     pub level: Option<UserSkillLevel>,
     pub r#type: UserSkillType,
     pub start_date: String,

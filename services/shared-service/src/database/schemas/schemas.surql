@@ -230,6 +230,7 @@ DEFINE FIELD created_at ON TABLE notification TYPE datetime
 DEFINE TABLE skill SCHEMAFULL TYPE NORMAL;
 -- define some fields.
 DEFINE FIELD name ON TABLE skill TYPE string;
+DEFINE FIELD description ON TABLE skill TYPE string;
 DEFINE FIELD type ON TABLE skill TYPE string
 -- Allow only these values in the array
   ASSERT $value INSIDE ["Technical", "Soft"];
