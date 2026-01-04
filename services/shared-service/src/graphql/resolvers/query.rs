@@ -12,7 +12,7 @@ use tonic::transport::Channel;
 
 use crate::graphql::schemas::{
     blog::{self, BlogPost, BlogStatus},
-    shared::{self, BillingPeriod, Ratecard},
+    shared::{self, BillingInterval, Ratecard},
     user::{self, PublicSiteResources, UserResources},
 };
 
@@ -342,7 +342,7 @@ impl Query {
     pub async fn fetch_billing_rate(
         &self,
         ctx: &Context<'_>,
-        billing_period: BillingPeriod,
+        billing_interval: BillingInterval,
         service_ids: Vec<String>,
     ) -> async_graphql::Result<String> {
         let db = ctx
@@ -365,20 +365,31 @@ impl Query {
                 BEGIN TRANSACTION;
                 LET $billing_rates = (SELECT service.title AS service_title, service.id AS service_id, base_rate AS hourly_rate, base_rate * hour_week AS weekly_rate, base_rate * hour_week * 4 AS monthly_rate, base_rate * hour_week * 4 * 12 AS annual_rate FROM rate WHERE service.id IN $service_record_ids GROUP BY service_id);
 
-                RETURN IF $billing_period = 'Weekly' {
-                    math::mean($billing_rates.map(|$billing_rate| $billing_rate.weekly_rate))
-                } ELSE IF $billing_period = 'Monthly' {
-                    math::mean($billing_rates.map(|$billing_rate| $billing_rate.monthly_rate))
-                } ELSE IF $billing_period = 'Annual' {
-                    math::mean($billing_rates.map(|$billing_rate| $billing_rate.annual_rate))
+                LET $rates_count = array::len($billing_rates);
+                LET $bundle_discount = IF $rates_count > 1 {
+                    1 - (0.8 * (1 - math::pow(math::e, (-0.4 * $rates_count))))
                 } ELSE {
-                    math::mean($billing_rates.map(|$billing_rate| $billing_rate.hourly_rate))
+                    1
+                };
+
+                RETURN IF $billing_interval = 'Weekly' {
+                    LET $weekly_rates = $billing_rates.map(|$billing_rate| $billing_rate.weekly_rate);
+                    math::sum($weekly_rates)*$bundle_discount
+                } ELSE IF $billing_interval = 'Monthly' {
+                    LET $monthly_rates = $billing_rates.map(|$billing_rate| $billing_rate.monthly_rate);
+                    math::sum($monthly_rates)*$bundle_discount
+                } ELSE IF $billing_interval = 'Annual' {
+                    LET $annual_rates = $billing_rates.map(|$billing_rate| $billing_rate.annual_rate);
+                    math::sum($annual_rates)*$bundle_discount
+                } ELSE {
+                    LET $hourly_rates = $billing_rates.map(|$billing_rate| $billing_rate.hourly_rate);
+                    math::sum($hourly_rates)*$bundle_discount
                 };
 
                 COMMIT TRANSACTION;
                 "#
             )
-            .bind(("billing_period", billing_period))
+            .bind(("billing_interval", billing_interval))
             .bind(("service_record_ids", service_record_ids))
             .await
             .map_err(|e| {

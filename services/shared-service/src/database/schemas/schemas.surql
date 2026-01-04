@@ -133,7 +133,7 @@ DEFINE FIELD updated_at ON TABLE rate TYPE datetime
 
 -- -- A schema-full applies_to table to relate discount to service.
 -- DEFINE TABLE applies_to SCHEMAFULL TYPE RELATION IN discount OUT service;
--- DEFINE FIELD billing_period ON TABLE applies_to TYPE string
+-- DEFINE FIELD billing_interval ON TABLE applies_to TYPE string
 --     ASSERT $value INSIDE ["Hourly", "Weekly", "Monthly", "Annual"];
 -- DEFINE FIELD created_at ON TABLE applies_to TYPE datetime
 --   DEFAULT time::now() READONLY;

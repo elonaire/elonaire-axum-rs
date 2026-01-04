@@ -196,7 +196,7 @@ impl ServiceRequest {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Enum, Copy, Eq, PartialEq)]
-pub enum BillingPeriod {
+pub enum BillingInterval {
     #[graphql(name = "Hourly")]
     Hourly,
     #[graphql(name = "Weekly")]
