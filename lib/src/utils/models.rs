@@ -1,4 +1,4 @@
-use async_graphql::SimpleObject;
+use async_graphql::{ComplexObject, SimpleObject};
 use serde::{Deserialize, Serialize};
 use surrealdb::RecordId;
 
@@ -24,17 +24,33 @@ pub struct UserId {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
+#[graphql(complex)]
 pub struct CurrencyId {
     #[graphql(skip)]
     pub id: RecordId,
     pub currency_id: String,
 }
 
+#[ComplexObject]
+impl CurrencyId {
+    async fn id(&self) -> String {
+        self.id.key().to_string()
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
+#[graphql(complex)]
 pub struct UploadedFileId {
     #[graphql(skip)]
     pub id: RecordId,
     pub file_id: String,
+}
+
+#[ComplexObject]
+impl UploadedFileId {
+    async fn id(&self) -> String {
+        self.id.key().to_string()
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
