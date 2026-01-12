@@ -1069,7 +1069,9 @@ impl Mutation {
                     LET $service_record = type::thing('service', $service);
                    	RELATE $created_ratecard_id -> contains -> $service_record;
                 };
-                RETURN $created_ratecard;
+
+                LET $full_ratecard = (SELECT *, ->contains->service.* AS services FROM ONLY $created_ratecard_id LIMIT 1);
+                RETURN $full_ratecard;
                 COMMIT TRANSACTION;
             ",
             )
