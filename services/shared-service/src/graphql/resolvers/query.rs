@@ -12,7 +12,7 @@ use tonic::transport::Channel;
 
 use crate::graphql::schemas::{
     blog::{self, BlogPost, BlogStatus},
-    shared::{self, BillingInterval, Ratecard, ServiceRate},
+    shared::{self, BillingInterval, Ratecard, ServiceRate, ServiceRequest},
     user::{self, PublicSiteResources, UserResources},
 };
 
@@ -463,5 +463,35 @@ impl Query {
         })?;
 
         Ok(ratecards)
+    }
+
+    pub async fn fetch_service_requests(
+        &self,
+        ctx: &Context<'_>,
+    ) -> async_graphql::Result<Vec<ServiceRequest>> {
+        let db = ctx
+            .data::<Extension<Arc<Surreal<SurrealClient>>>>()
+            .map_err(|e| {
+                tracing::error!("Error Surreal Client: {:?}", e);
+                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str())
+                    .build()
+            })?;
+
+        // fetch all service rates in DB
+        let mut query_results = db
+            .query("SELECT * FROM service_request FETCH supporting_docs")
+            .await
+            .map_err(|e| {
+                tracing::error!("Query Error: {:?}", e);
+                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str())
+                    .build()
+            })?;
+
+        let service_requests: Vec<ServiceRequest> = query_results.take(0).map_err(|e| {
+            tracing::error!("rate deserialization error: {}", e);
+            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
+        })?;
+
+        Ok(service_requests)
     }
 }
