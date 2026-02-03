@@ -1,3 +1,4 @@
+pub mod api_response;
 pub mod auth;
 pub mod cookie_parser;
 pub mod custom_error;

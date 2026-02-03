@@ -15,11 +15,11 @@ pub mod files_service {
     include!("out/files.rs");
 }
 
-convert_from_protobuf_bidirectionally!(
-    acl_service::AuthStatus,
-    utils::models::AuthStatus,
-    { sub, is_auth, current_role }
-);
+// convert_from_protobuf_bidirectionally!(
+//     acl_service::AuthStatus,
+//     utils::models::AuthStatus,
+//     { sub, is_auth, current_role, new_access_token }
+// );
 
 /// For easy conversion to protobuf
 impl From<acl_service::ConfirmAuthenticationResponse> for utils::models::AuthStatus {
@@ -28,6 +28,18 @@ impl From<acl_service::ConfirmAuthenticationResponse> for utils::models::AuthSta
             sub: auth_status.sub,
             is_auth: auth_status.is_auth,
             current_role: auth_status.current_role,
+            new_access_token: Some(auth_status.new_access_token),
+        }
+    }
+}
+
+impl From<utils::models::AuthStatus> for acl_service::AuthStatus {
+    fn from(auth_status: utils::models::AuthStatus) -> Self {
+        Self {
+            sub: auth_status.sub,
+            is_auth: auth_status.is_auth,
+            current_role: auth_status.current_role,
+            new_access_token: auth_status.new_access_token.unwrap_or(String::new()),
         }
     }
 }

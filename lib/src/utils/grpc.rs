@@ -17,9 +17,9 @@ use crate::{
     integration::grpc::clients::{
         acl_service::{acl_client::AclClient, ConfirmAuthorizationRequest},
         email_service::email_service_client::EmailServiceClient,
-        files_service::files_service_client::FilesServiceClient,
+        files_service::{files_service_client::FilesServiceClient, CreateFileFromContentRequest},
     },
-    utils::{models::AuthStatus, models::AuthorizationConstraint},
+    utils::models::{AuthStatus, AuthorizationConstraint, CreateFileInfo},
 };
 
 // Define the trait for gRPC clients
@@ -210,6 +210,56 @@ pub async fn confirm_authorization(
         Ok(response) => {
             let is_authorized = response.into_inner().is_auth;
             Ok(is_authorized)
+        }
+        Err(_e) => Err(StdError::new(ErrorKind::PermissionDenied, "Unauthorized")),
+    }
+}
+
+pub async fn create_file_from_content(
+    auth_status: &AuthStatus,
+    headers: &HeaderMap,
+    file_info: &CreateFileInfo,
+) -> Result<String, StdError> {
+    let auth_header = headers.get(AUTHORIZATION);
+    let cookie_header = headers.get(COOKIE);
+
+    let mut request = tonic::Request::new(CreateFileFromContentRequest {
+        file_name: file_info.file_name.clone(),
+        content: file_info.content.clone(),
+        extension: file_info.extension.try_into().unwrap(),
+        is_free: file_info.is_free,
+    });
+
+    let auth_metadata: AuthMetaData<CreateFileFromContentRequest> = AuthMetaData {
+        auth_header: auth_header,
+        cookie_header: cookie_header,
+        constructed_grpc_request: Some(&mut request),
+    };
+
+    let files_service_grpc = env::var("FILES_SERVICE_GRPC").map_err(|e| {
+        tracing::error!(
+            "Missing the FILES_SERVICE_GRPC environment variable.: {}",
+            e
+        );
+        StdError::new(ErrorKind::Other, "Server Error")
+    })?;
+
+    let mut files_grpc_client = create_grpc_client::<
+        CreateFileFromContentRequest,
+        FilesServiceClient<Channel>,
+    >(&files_service_grpc, true, Some(auth_metadata))
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to connect to files service: {}", e);
+        StdError::new(ErrorKind::Other, "Failed to connect to files service")
+    })?;
+
+    let response = files_grpc_client.create_file_from_content(request).await;
+
+    match response {
+        Ok(response) => {
+            let file_id = response.into_inner().file_id;
+            Ok(file_id)
         }
         Err(_e) => Err(StdError::new(ErrorKind::PermissionDenied, "Unauthorized")),
     }

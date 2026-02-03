@@ -1,10 +1,20 @@
-use async_graphql::{ComplexObject, Enum, InputObject, SimpleObject};
-use lib::utils::models::{CurrencyId, UploadedFileId};
+use async_graphql::{ComplexObject, Enum, InputObject, OutputType, SimpleObject};
+use lib::utils::models::{ApiResponse, CurrencyId, UploadedFileId};
 use lib::utils::serialization::convert_float_to_string;
 use serde::{Deserialize, Serialize};
 use surrealdb::RecordId;
 
-use crate::graphql::schemas::user::UserService;
+use crate::graphql::schemas::blog::{BlogComment, BlogPost};
+use crate::graphql::schemas::user::{
+    PublicSiteResources, UserPortfolio, UserProfessionalInfo, UserResources, UserResume,
+    UserService, UserSkill,
+};
+
+type BlogPosts = Vec<BlogPost>;
+type Messages = Vec<Message>;
+type Ratecards = Vec<Ratecard>;
+type ServiceRates = Vec<ServiceRate>;
+type ServiceRequests = Vec<ServiceRequest>;
 
 // Reaction
 #[derive(Clone, Debug, Serialize, Deserialize, InputObject)]
@@ -205,4 +215,48 @@ pub enum BillingInterval {
     Monthly,
     #[graphql(name = "Annual")]
     Annual,
+}
+
+#[derive(SimpleObject)]
+#[graphql(concrete(name = "UserProfessionalInfoResponse", params(UserProfessionalInfo)))]
+#[graphql(concrete(name = "UserServiceResponse", params(UserService)))]
+#[graphql(concrete(name = "UserPortfolioResponse", params(UserPortfolio)))]
+#[graphql(concrete(name = "UserResumeResponse", params(UserResume)))]
+#[graphql(concrete(name = "UserSkillResponse", params(UserSkill)))]
+#[graphql(concrete(name = "BlogPostResponse", params(BlogPost)))]
+#[graphql(concrete(name = "BlogPostsResponse", params(BlogPosts)))]
+#[graphql(concrete(name = "BlogCommentResponse", params(BlogComment)))]
+#[graphql(concrete(name = "ReactionResponse", params(Reaction)))]
+#[graphql(concrete(name = "MessageResponse", params(Message)))]
+#[graphql(concrete(name = "MessagesResponse", params(Messages)))]
+#[graphql(concrete(name = "RatecardResponse", params(Ratecard)))]
+#[graphql(concrete(name = "RatecardsResponse", params(Ratecards)))]
+#[graphql(concrete(name = "ServiceRequestResponse", params(ServiceRequest)))]
+#[graphql(concrete(name = "ServiceRequestsResponse", params(ServiceRequests)))]
+#[graphql(concrete(name = "ServiceRateResponse", params(ServiceRate)))]
+#[graphql(concrete(name = "ServiceRatesResponse", params(ServiceRates)))]
+#[graphql(concrete(name = "UserResourcesResponse", params(UserResources)))]
+#[graphql(concrete(name = "PublicSiteResourcesResponse", params(PublicSiteResources)))]
+#[graphql(concrete(name = "StringResponse", params(String)))]
+pub struct GraphQLApiResponse<T: OutputType> {
+    pub data: T,
+    pub metadata: GraphQLApiResponseMetadata,
+}
+
+#[derive(SimpleObject)]
+pub struct GraphQLApiResponseMetadata {
+    pub request_id: String,
+    pub new_access_token: Option<String>,
+}
+
+impl<T: Send + Sync + Clone + OutputType> From<ApiResponse<T>> for GraphQLApiResponse<T> {
+    fn from(standard_res: ApiResponse<T>) -> Self {
+        Self {
+            data: standard_res.get_data(),
+            metadata: GraphQLApiResponseMetadata {
+                request_id: standard_res.get_request_id(),
+                new_access_token: standard_res.get_new_access_token(),
+            },
+        }
+    }
 }

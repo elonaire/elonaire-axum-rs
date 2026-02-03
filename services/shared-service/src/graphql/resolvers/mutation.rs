@@ -5,9 +5,11 @@ use axum::Extension;
 // use gql_client::Client as GQLClient;
 
 use hyper::{HeaderMap, StatusCode};
-use lib::utils::grpc::confirm_authorization;
+use lib::utils::api_response::synthesize_graphql_response;
+use lib::utils::grpc::{confirm_authorization, create_file_from_content};
 use lib::utils::models::{
-    AdminPrivilege, AuthorizationConstraint, CurrencyId, ForeignKey, UploadedFileId, UserId,
+    AdminPrivilege, AllowedCreateFileExtension, AuthorizationConstraint, CreateFileInfo,
+    CurrencyId, ForeignKey, UploadedFileId, UserId,
 };
 use lib::{
     integration::foreign_key::add_foreign_key_if_not_exists,
@@ -17,8 +19,9 @@ use surrealdb::RecordId;
 use surrealdb::{engine::remote::ws::Client as SurrealClient, Surreal};
 
 use crate::graphql::schemas::shared::{
-    Ratecard, RatecardInput, RatecardInputMetadata, ServiceRate, ServiceRateInput,
-    ServiceRateInputMetadata, ServiceRequest, ServiceRequestInput, ServiceRequestInputMetadata,
+    GraphQLApiResponse, Ratecard, RatecardInput, RatecardInputMetadata, ServiceRate,
+    ServiceRateInput, ServiceRateInputMetadata, ServiceRequest, ServiceRequestInput,
+    ServiceRequestInputMetadata,
 };
 use crate::graphql::schemas::user::{UserProfessionalInfo, UserProfessionalInfoInput};
 use crate::graphql::schemas::{blog, shared, user};
@@ -34,7 +37,7 @@ impl Mutation {
         &self,
         ctx: &Context<'_>,
         professional_details: UserProfessionalInfoInput,
-    ) -> async_graphql::Result<UserProfessionalInfo> {
+    ) -> async_graphql::Result<GraphQLApiResponse<UserProfessionalInfo>> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .map_err(|e| {
@@ -47,7 +50,7 @@ impl Mutation {
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
-        let authenticated = confirm_authentication(headers).await?;
+        let authenticated = confirm_authentication(ctx).await?;
         let authenticated_ref = &authenticated;
 
         let authorization_constraint = AuthorizationConstraint {
@@ -102,7 +105,15 @@ impl Mutation {
         })?;
 
         match response {
-            Some(professional_info) => Ok(professional_info),
+            Some(professional_info) => {
+                let api_response =
+                    synthesize_graphql_response(ctx, &professional_info, Some(authenticated_ref))
+                        .ok_or_else(|| {
+                        tracing::error!("Failed to synthesize response!");
+                        ExtendedError::new("Bad Request", StatusCode::BAD_REQUEST.as_str()).build()
+                    })?;
+                Ok(api_response.into())
+            }
             None => Err(ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()),
         }
     }
@@ -112,7 +123,7 @@ impl Mutation {
         &self,
         ctx: &Context<'_>,
         user_service: user::UserServiceInput,
-    ) -> async_graphql::Result<user::UserService> {
+    ) -> async_graphql::Result<GraphQLApiResponse<user::UserService>> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .map_err(|e| {
@@ -126,7 +137,7 @@ impl Mutation {
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
-        let authenticated = confirm_authentication(headers).await?;
+        let authenticated = confirm_authentication(ctx).await?;
         let authenticated_ref = &authenticated;
 
         let authorization_constraint = AuthorizationConstraint {
@@ -180,7 +191,16 @@ impl Mutation {
         })?;
 
         match response {
-            Some(user_service) => Ok(user_service),
+            Some(user_service) => {
+                let api_response =
+                    synthesize_graphql_response(ctx, &user_service, Some(authenticated_ref))
+                        .ok_or_else(|| {
+                            tracing::error!("Failed to synthesize response!");
+                            ExtendedError::new("Bad Request", StatusCode::BAD_REQUEST.as_str())
+                                .build()
+                        })?;
+                Ok(api_response.into())
+            }
             None => Err(ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()),
         }
     }
@@ -191,7 +211,7 @@ impl Mutation {
         ctx: &Context<'_>,
         portfolio_item: user::UserPortfolioInput,
         skills: Vec<String>,
-    ) -> async_graphql::Result<user::UserPortfolio> {
+    ) -> async_graphql::Result<GraphQLApiResponse<user::UserPortfolio>> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .map_err(|e| {
@@ -205,7 +225,7 @@ impl Mutation {
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
-        let authenticated = confirm_authentication(headers).await?;
+        let authenticated = confirm_authentication(ctx).await?;
         let authenticated_ref = &authenticated;
 
         let authorization_constraint = AuthorizationConstraint {
@@ -274,7 +294,16 @@ impl Mutation {
         })?;
 
         match response {
-            Some(user_portfolio) => Ok(user_portfolio),
+            Some(user_portfolio) => {
+                let api_response =
+                    synthesize_graphql_response(ctx, &user_portfolio, Some(authenticated_ref))
+                        .ok_or_else(|| {
+                            tracing::error!("Failed to synthesize response!");
+                            ExtendedError::new("Bad Request", StatusCode::BAD_REQUEST.as_str())
+                                .build()
+                        })?;
+                Ok(api_response.into())
+            }
             None => Err(ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()),
         }
     }
@@ -285,7 +314,7 @@ impl Mutation {
         ctx: &Context<'_>,
         resume_item: user::UserResumeInput,
         achievements: Vec<String>,
-    ) -> async_graphql::Result<user::UserResume> {
+    ) -> async_graphql::Result<GraphQLApiResponse<user::UserResume>> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .map_err(|e| {
@@ -299,7 +328,7 @@ impl Mutation {
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
-        let authenticated = confirm_authentication(headers).await?;
+        let authenticated = confirm_authentication(ctx).await?;
         let authenticated_ref = &authenticated;
 
         let authorization_constraint = AuthorizationConstraint {
@@ -370,7 +399,16 @@ impl Mutation {
         })?;
 
         match response {
-            Some(resume_item) => Ok(resume_item),
+            Some(resume_item) => {
+                let api_response =
+                    synthesize_graphql_response(ctx, &resume_item, Some(authenticated_ref))
+                        .ok_or_else(|| {
+                            tracing::error!("Failed to synthesize response!");
+                            ExtendedError::new("Bad Request", StatusCode::BAD_REQUEST.as_str())
+                                .build()
+                        })?;
+                Ok(api_response.into())
+            }
             None => Err(ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()),
         }
     }
@@ -380,7 +418,7 @@ impl Mutation {
         &self,
         ctx: &Context<'_>,
         skill: user::UserSkillInput,
-    ) -> async_graphql::Result<user::UserSkill> {
+    ) -> async_graphql::Result<GraphQLApiResponse<user::UserSkill>> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .map_err(|e| {
@@ -394,7 +432,7 @@ impl Mutation {
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
-        let authenticated = confirm_authentication(headers).await?;
+        let authenticated = confirm_authentication(ctx).await?;
         let authenticated_ref = &authenticated;
 
         let authorization_constraint = AuthorizationConstraint {
@@ -450,7 +488,16 @@ impl Mutation {
         })?;
 
         match response {
-            Some(user_skill) => Ok(user_skill),
+            Some(user_skill) => {
+                let api_response =
+                    synthesize_graphql_response(ctx, &user_skill, Some(authenticated_ref))
+                        .ok_or_else(|| {
+                            tracing::error!("Failed to synthesize response!");
+                            ExtendedError::new("Bad Request", StatusCode::BAD_REQUEST.as_str())
+                                .build()
+                        })?;
+                Ok(api_response.into())
+            }
             None => Err(ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()),
         }
     }
@@ -460,7 +507,7 @@ impl Mutation {
         &self,
         ctx: &Context<'_>,
         mut blog_post: blog::BlogPostInput,
-    ) -> async_graphql::Result<blog::BlogPost> {
+    ) -> async_graphql::Result<GraphQLApiResponse<blog::BlogPost>> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .map_err(|e| {
@@ -474,7 +521,7 @@ impl Mutation {
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
-        let authenticated = confirm_authentication(headers).await?;
+        let authenticated = confirm_authentication(ctx).await?;
         let authenticated_ref = &authenticated;
 
         let authorization_constraint = AuthorizationConstraint {
@@ -488,6 +535,24 @@ impl Mutation {
             return Err(ExtendedError::new("Forbidden", StatusCode::FORBIDDEN.as_str()).build());
         }
 
+        let file_info = CreateFileInfo {
+            file_name: blog_post.title.clone(),
+            content: blog_post.content.clone(),
+            extension: AllowedCreateFileExtension::Markdown,
+            is_free: !blog_post.is_premium.unwrap_or(false),
+        };
+
+        let saved_file = create_file_from_content(authenticated_ref, headers, &file_info)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to create file: {}", e);
+                ExtendedError::new(
+                    "Something went wrong",
+                    StatusCode::INTERNAL_SERVER_ERROR.as_str(),
+                )
+                .build()
+            })?;
+
         let user_fk = ForeignKey {
             table: "user_id".to_string(),
             column: "user_id".to_string(),
@@ -497,7 +562,7 @@ impl Mutation {
         let content_file_fk = ForeignKey {
             table: "file_id".to_string(),
             column: "file_id".to_string(),
-            foreign_key: blog_post.content_file.clone(),
+            foreign_key: saved_file,
         };
 
         let added_user = add_foreign_key_if_not_exists::<
@@ -528,7 +593,8 @@ impl Mutation {
             .build()
         })?;
 
-        blog_post.content_file = format!("file_id:{}", added_file.id.key().to_string());
+        blog_post.content_file = Some(added_file.id);
+        tracing::debug!("blog_post: {:?}", blog_post);
 
         let mut database_transaction = db
             .query(
@@ -561,7 +627,16 @@ impl Mutation {
         })?;
 
         match response {
-            Some(blog_post) => Ok(blog_post),
+            Some(blog_post) => {
+                let api_response =
+                    synthesize_graphql_response(ctx, &blog_post, Some(authenticated_ref))
+                        .ok_or_else(|| {
+                            tracing::error!("Failed to synthesize response!");
+                            ExtendedError::new("Bad Request", StatusCode::BAD_REQUEST.as_str())
+                                .build()
+                        })?;
+                Ok(api_response.into())
+            }
             None => Err(ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()),
         }
     }
@@ -572,7 +647,7 @@ impl Mutation {
         ctx: &Context<'_>,
         blog_comment: blog::BlogCommentInput,
         blog_post_id: String,
-    ) -> async_graphql::Result<blog::BlogComment> {
+    ) -> async_graphql::Result<GraphQLApiResponse<blog::BlogComment>> {
         // TODO: Might have to allow anonymous comments?
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
@@ -582,12 +657,7 @@ impl Mutation {
                     .build()
             })?;
 
-        let headers = ctx.data::<HeaderMap>().map_err(|e| {
-            tracing::error!("Error HeaderMap: {:?}", e);
-            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
-        })?;
-
-        let authenticated = confirm_authentication(headers).await?;
+        let authenticated = confirm_authentication(ctx).await?;
         let authenticated_ref = &authenticated;
 
         let user_fk = ForeignKey {
@@ -634,7 +704,7 @@ impl Mutation {
         .bind(("blog_comment_input", blog_comment))
         .bind(("blog_table", "blog_post"))
         .bind(("blog_post_id", format!("blog_post:{}", blog_post_id)))
-        .bind(("user_id", authenticated.sub))
+        .bind(("user_id", authenticated_ref.sub.to_owned()))
         .bind(("user_table", "user_id"))
         .await
         .map_err(|e| {
@@ -654,7 +724,16 @@ impl Mutation {
         })?;
 
         match response {
-            Some(blog_comment) => Ok(blog_comment),
+            Some(blog_comment) => {
+                let api_response =
+                    synthesize_graphql_response(ctx, &blog_comment, Some(authenticated_ref))
+                        .ok_or_else(|| {
+                            tracing::error!("Failed to synthesize response!");
+                            ExtendedError::new("Bad Request", StatusCode::BAD_REQUEST.as_str())
+                                .build()
+                        })?;
+                Ok(api_response.into())
+            }
             None => Err(ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()),
         }
     }
@@ -665,7 +744,7 @@ impl Mutation {
         ctx: &Context<'_>,
         blog_comment: blog::BlogCommentInput,
         comment_id: String,
-    ) -> async_graphql::Result<blog::BlogComment> {
+    ) -> async_graphql::Result<GraphQLApiResponse<blog::BlogComment>> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .map_err(|e| {
@@ -674,12 +753,7 @@ impl Mutation {
                     .build()
             })?;
 
-        let headers = ctx.data::<HeaderMap>().map_err(|e| {
-            tracing::error!("Error HeaderMap: {:?}", e);
-            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
-        })?;
-
-        let authenticated = confirm_authentication(headers).await?;
+        let authenticated = confirm_authentication(ctx).await?;
         let authenticated_ref = &authenticated;
 
         let user_fk = ForeignKey {
@@ -726,7 +800,7 @@ impl Mutation {
         .bind(("blog_comment_input", blog_comment))
         .bind(("comment_table", "comment"))
         .bind(("comment_id", format!("comment:{}", comment_id)))
-        .bind(("user_id", authenticated.sub))
+        .bind(("user_id", authenticated_ref.sub.to_owned()))
         .bind(("user_table", "user_id"))
         .await
         .map_err(|e| {
@@ -746,7 +820,16 @@ impl Mutation {
         })?;
 
         match response {
-            Some(blog_comment) => Ok(blog_comment),
+            Some(blog_comment) => {
+                let api_response =
+                    synthesize_graphql_response(ctx, &blog_comment, Some(authenticated_ref))
+                        .ok_or_else(|| {
+                            tracing::error!("Failed to synthesize response!");
+                            ExtendedError::new("Bad Request", StatusCode::BAD_REQUEST.as_str())
+                                .build()
+                        })?;
+                Ok(api_response.into())
+            }
             None => Err(ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()),
         }
     }
@@ -757,7 +840,7 @@ impl Mutation {
         ctx: &Context<'_>,
         reaction: shared::ReactionInput,
         blog_post_id: String,
-    ) -> async_graphql::Result<shared::Reaction> {
+    ) -> async_graphql::Result<GraphQLApiResponse<shared::Reaction>> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .map_err(|e| {
@@ -766,12 +849,7 @@ impl Mutation {
                     .build()
             })?;
 
-        let headers = ctx.data::<HeaderMap>().map_err(|e| {
-            tracing::error!("Error HeaderMap: {:?}", e);
-            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
-        })?;
-
-        let authenticated = confirm_authentication(headers).await?;
+        let authenticated = confirm_authentication(ctx).await?;
         let authenticated_ref = &authenticated;
 
         let user_fk = ForeignKey {
@@ -812,7 +890,7 @@ impl Mutation {
             "
         )
         .bind(("reaction_input", reaction))
-        .bind(("user_id", authenticated.sub))
+        .bind(("user_id", authenticated_ref.sub.to_owned()))
         .bind(("user_table", "user_id"))
         .bind(("blog_table", "blog_post"))
         .bind(("blog_post_id", blog_post_id))
@@ -834,7 +912,16 @@ impl Mutation {
         })?;
 
         match response {
-            Some(resume_item) => Ok(resume_item),
+            Some(reaction) => {
+                let api_response =
+                    synthesize_graphql_response(ctx, &reaction, Some(authenticated_ref))
+                        .ok_or_else(|| {
+                            tracing::error!("Failed to synthesize response!");
+                            ExtendedError::new("Bad Request", StatusCode::BAD_REQUEST.as_str())
+                                .build()
+                        })?;
+                Ok(api_response.into())
+            }
             None => Err(ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()),
         }
     }
@@ -845,7 +932,7 @@ impl Mutation {
         ctx: &Context<'_>,
         reaction: shared::ReactionInput,
         comment_id: String,
-    ) -> async_graphql::Result<shared::Reaction> {
+    ) -> async_graphql::Result<GraphQLApiResponse<shared::Reaction>> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .map_err(|e| {
@@ -854,12 +941,7 @@ impl Mutation {
                     .build()
             })?;
 
-        let headers = ctx.data::<HeaderMap>().map_err(|e| {
-            tracing::error!("Error HeaderMap: {:?}", e);
-            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
-        })?;
-
-        let authenticated = confirm_authentication(headers).await?;
+        let authenticated = confirm_authentication(ctx).await?;
         let authenticated_ref = &authenticated;
 
         let user_fk = ForeignKey {
@@ -899,7 +981,7 @@ impl Mutation {
             "
         )
         .bind(("reaction_input", reaction))
-        .bind(("user_id", authenticated.sub))
+        .bind(("user_id", authenticated_ref.sub.to_owned()))
         .bind(("user_table", "user_id"))
         .bind(("comment_table", "comment"))
         .bind(("comment_id", comment_id))
@@ -921,7 +1003,16 @@ impl Mutation {
         })?;
 
         match response {
-            Some(reaction) => Ok(reaction),
+            Some(reaction) => {
+                let api_response =
+                    synthesize_graphql_response(ctx, &reaction, Some(authenticated_ref))
+                        .ok_or_else(|| {
+                            tracing::error!("Failed to synthesize response!");
+                            ExtendedError::new("Bad Request", StatusCode::BAD_REQUEST.as_str())
+                                .build()
+                        })?;
+                Ok(api_response.into())
+            }
             None => Err(ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()),
         }
     }
@@ -931,7 +1022,7 @@ impl Mutation {
         &self,
         ctx: &Context<'_>,
         message: shared::MessageInput,
-    ) -> async_graphql::Result<shared::Message> {
+    ) -> async_graphql::Result<GraphQLApiResponse<shared::Message>> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .map_err(|e| {
@@ -948,7 +1039,14 @@ impl Mutation {
             })?;
 
         match message {
-            Some(message) => Ok(message),
+            Some(message) => {
+                let api_response =
+                    synthesize_graphql_response(ctx, &message, None).ok_or_else(|| {
+                        tracing::error!("Failed to synthesize response!");
+                        ExtendedError::new("Bad Request", StatusCode::BAD_REQUEST.as_str()).build()
+                    })?;
+                Ok(api_response.into())
+            }
             None => Err(ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()),
         }
     }
@@ -958,7 +1056,7 @@ impl Mutation {
         ctx: &Context<'_>,
         blog_post: blog::BlogPostUpdate,
         blog_post_id: String,
-    ) -> async_graphql::Result<blog::BlogPost> {
+    ) -> async_graphql::Result<GraphQLApiResponse<blog::BlogPost>> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .map_err(|e| {
@@ -971,7 +1069,7 @@ impl Mutation {
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
-        let authenticated = confirm_authentication(headers).await?;
+        let authenticated = confirm_authentication(ctx).await?;
         let authenticated_ref = &authenticated;
 
         let authorization_constraint = AuthorizationConstraint {
@@ -996,7 +1094,16 @@ impl Mutation {
             })?;
 
         match response {
-            Some(blog_post) => Ok(blog_post),
+            Some(blog_post) => {
+                let api_response =
+                    synthesize_graphql_response(ctx, &blog_post, Some(authenticated_ref))
+                        .ok_or_else(|| {
+                            tracing::error!("Failed to synthesize response!");
+                            ExtendedError::new("Bad Request", StatusCode::BAD_REQUEST.as_str())
+                                .build()
+                        })?;
+                Ok(api_response.into())
+            }
             None => Err(
                 ExtendedError::new("Blog post not found", StatusCode::NOT_FOUND.as_str()).build(),
             ),
@@ -1009,7 +1116,7 @@ impl Mutation {
         ctx: &Context<'_>,
         ratecard_input: RatecardInput,
         ratecard_input_metadata: RatecardInputMetadata,
-    ) -> async_graphql::Result<Ratecard> {
+    ) -> async_graphql::Result<GraphQLApiResponse<Ratecard>> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .map_err(|e| {
@@ -1023,7 +1130,7 @@ impl Mutation {
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
-        let authenticated = confirm_authentication(headers).await?;
+        let authenticated = confirm_authentication(ctx).await?;
         let authenticated_ref = &authenticated;
 
         let authorization_constraint = AuthorizationConstraint {
@@ -1091,7 +1198,16 @@ impl Mutation {
         })?;
 
         match response {
-            Some(ratecard) => Ok(ratecard),
+            Some(ratecard) => {
+                let api_response =
+                    synthesize_graphql_response(ctx, &ratecard, Some(authenticated_ref))
+                        .ok_or_else(|| {
+                            tracing::error!("Failed to synthesize response!");
+                            ExtendedError::new("Bad Request", StatusCode::BAD_REQUEST.as_str())
+                                .build()
+                        })?;
+                Ok(api_response.into())
+            }
             None => Err(ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()),
         }
     }
@@ -1102,7 +1218,7 @@ impl Mutation {
         ctx: &Context<'_>,
         mut service_request_input: ServiceRequestInput,
         service_request_input_metadata: ServiceRequestInputMetadata,
-    ) -> async_graphql::Result<ServiceRequest> {
+    ) -> async_graphql::Result<GraphQLApiResponse<ServiceRequest>> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .map_err(|e| {
@@ -1116,7 +1232,7 @@ impl Mutation {
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
-        let authenticated = confirm_authentication(headers).await?;
+        let authenticated = confirm_authentication(ctx).await?;
         let authenticated_ref = &authenticated;
 
         let authorization_constraint = AuthorizationConstraint {
@@ -1212,7 +1328,16 @@ impl Mutation {
         })?;
 
         match response {
-            Some(service_request) => Ok(service_request),
+            Some(service_request) => {
+                let api_response =
+                    synthesize_graphql_response(ctx, &service_request, Some(authenticated_ref))
+                        .ok_or_else(|| {
+                            tracing::error!("Failed to synthesize response!");
+                            ExtendedError::new("Bad Request", StatusCode::BAD_REQUEST.as_str())
+                                .build()
+                        })?;
+                Ok(api_response.into())
+            }
             None => Err(ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()),
         }
     }
@@ -1223,7 +1348,7 @@ impl Mutation {
         ctx: &Context<'_>,
         mut service_rate_input: ServiceRateInput,
         service_rate_input_metadata: ServiceRateInputMetadata,
-    ) -> async_graphql::Result<ServiceRate> {
+    ) -> async_graphql::Result<GraphQLApiResponse<ServiceRate>> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .map_err(|e| {
@@ -1237,7 +1362,7 @@ impl Mutation {
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
-        let authenticated = confirm_authentication(headers).await?;
+        let authenticated = confirm_authentication(ctx).await?;
         let authenticated_ref = &authenticated;
 
         let authorization_constraint = AuthorizationConstraint {
@@ -1327,7 +1452,16 @@ impl Mutation {
         })?;
 
         match response {
-            Some(service_rate) => Ok(service_rate),
+            Some(service_rate) => {
+                let api_response =
+                    synthesize_graphql_response(ctx, &service_rate, Some(authenticated_ref))
+                        .ok_or_else(|| {
+                            tracing::error!("Failed to synthesize response!");
+                            ExtendedError::new("Bad Request", StatusCode::BAD_REQUEST.as_str())
+                                .build()
+                        })?;
+                Ok(api_response.into())
+            }
             None => Err(ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()),
         }
     }

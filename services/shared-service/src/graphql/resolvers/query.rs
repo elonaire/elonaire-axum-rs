@@ -12,7 +12,7 @@ use tonic::transport::Channel;
 
 use crate::graphql::schemas::{
     blog::{self, BlogPost, BlogStatus},
-    shared::{self, BillingInterval, Ratecard, ServiceRate, ServiceRequest},
+    shared::{self, BillingInterval, GraphQLApiResponse, Ratecard, ServiceRate, ServiceRequest},
     user::{self, PublicSiteResources, UserResources},
 };
 
@@ -22,9 +22,10 @@ use lib::{
     },
     middleware::auth::graphql::confirm_authentication,
     utils::{
+        api_response::synthesize_graphql_response,
         custom_error::ExtendedError,
-        grpc::{create_grpc_client, AuthMetaData},
-        models::UploadedFileId,
+        grpc::{confirm_authorization, create_grpc_client, AuthMetaData},
+        models::{AdminPrivilege, AuthorizationConstraint, UploadedFileId},
         serialization::convert_float_to_string,
     },
 };
@@ -38,7 +39,7 @@ impl Query {
         &self,
         ctx: &Context<'_>,
         status: BlogStatus,
-    ) -> async_graphql::Result<Vec<blog::BlogPost>> {
+    ) -> async_graphql::Result<GraphQLApiResponse<Vec<blog::BlogPost>>> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .map_err(|e| {
@@ -61,7 +62,11 @@ impl Query {
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
-        Ok(result)
+        let api_response = synthesize_graphql_response(ctx, &result, None).ok_or_else(|| {
+            tracing::error!("Failed to synthesize response!");
+            ExtendedError::new("Bad Request", StatusCode::BAD_REQUEST.as_str()).build()
+        })?;
+        Ok(api_response.into())
     }
 
     /// Get user resources
@@ -69,7 +74,7 @@ impl Query {
     pub async fn fetch_user_resources(
         &self,
         ctx: &Context<'_>,
-    ) -> async_graphql::Result<UserResources> {
+    ) -> async_graphql::Result<GraphQLApiResponse<UserResources>> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .map_err(|e| {
@@ -78,12 +83,7 @@ impl Query {
                     .build()
             })?;
 
-        let headers = ctx.data::<HeaderMap>().map_err(|e| {
-            tracing::error!("Error HeaderMap: {:?}", e);
-            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
-        })?;
-
-        let authenticated = confirm_authentication(headers).await?;
+        let authenticated = confirm_authentication(ctx).await?;
         let authenticated_ref = &authenticated;
 
         let mut query_results = db
@@ -102,7 +102,14 @@ impl Query {
 
         let user_resources = UserResources { blog_posts };
 
-        Ok(user_resources)
+        let api_response =
+            synthesize_graphql_response(ctx, &user_resources, Some(authenticated_ref)).ok_or_else(
+                || {
+                    tracing::error!("Failed to synthesize response!");
+                    ExtendedError::new("Bad Request", StatusCode::BAD_REQUEST.as_str()).build()
+                },
+            )?;
+        Ok(api_response.into())
     }
 
     /// Get site public resources
@@ -110,7 +117,7 @@ impl Query {
     pub async fn fetch_site_resources(
         &self,
         ctx: &Context<'_>,
-    ) -> async_graphql::Result<PublicSiteResources> {
+    ) -> async_graphql::Result<GraphQLApiResponse<PublicSiteResources>> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .map_err(|e| {
@@ -168,7 +175,12 @@ impl Query {
             services,
         };
 
-        Ok(user_resources)
+        let api_response =
+            synthesize_graphql_response(ctx, &user_resources, None).ok_or_else(|| {
+                tracing::error!("Failed to synthesize response!");
+                ExtendedError::new("Bad Request", StatusCode::BAD_REQUEST.as_str()).build()
+            })?;
+        Ok(api_response.into())
     }
 
     /// Fetch Blog Content
@@ -176,7 +188,7 @@ impl Query {
         &self,
         ctx: &Context<'_>,
         blog_id_or_slug: String,
-    ) -> async_graphql::Result<BlogPost> {
+    ) -> async_graphql::Result<GraphQLApiResponse<BlogPost>> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .map_err(|e| {
@@ -303,13 +315,17 @@ impl Query {
         let blog_content = markdown::to_html(&content);
 
         blog_post.content = Some(blog_content);
-        Ok(blog_post)
+        let api_response = synthesize_graphql_response(ctx, &blog_post, None).ok_or_else(|| {
+            tracing::error!("Failed to synthesize response!");
+            ExtendedError::new("Bad Request", StatusCode::BAD_REQUEST.as_str()).build()
+        })?;
+        Ok(api_response.into())
     }
 
     pub async fn fetch_messages(
         &self,
         ctx: &Context<'_>,
-    ) -> async_graphql::Result<Vec<shared::Message>> {
+    ) -> async_graphql::Result<GraphQLApiResponse<Vec<shared::Message>>> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .map_err(|e| {
@@ -318,12 +334,8 @@ impl Query {
                     .build()
             })?;
 
-        let headers = ctx.data::<HeaderMap>().map_err(|e| {
-            tracing::error!("Error HeaderMap: {:?}", e);
-            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
-        })?;
-
-        let _authenticated = confirm_authentication(headers).await?;
+        let authenticated = confirm_authentication(ctx).await?;
+        let authenticated_ref = &authenticated;
 
         // fetch all messages in DB
         let mut query_results = db.query("SELECT * FROM message").await.map_err(|e| {
@@ -336,7 +348,12 @@ impl Query {
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
-        Ok(messages)
+        let api_response = synthesize_graphql_response(ctx, &messages, Some(authenticated_ref))
+            .ok_or_else(|| {
+                tracing::error!("Failed to synthesize response!");
+                ExtendedError::new("Bad Request", StatusCode::BAD_REQUEST.as_str()).build()
+            })?;
+        Ok(api_response.into())
     }
 
     pub async fn fetch_billing_rate(
@@ -344,7 +361,7 @@ impl Query {
         ctx: &Context<'_>,
         billing_interval: BillingInterval,
         service_ids: Vec<String>,
-    ) -> async_graphql::Result<String> {
+    ) -> async_graphql::Result<GraphQLApiResponse<String>> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .map_err(|e| {
@@ -403,12 +420,24 @@ impl Query {
         })?;
 
         match response {
-            Some(billing_rate) => Ok(convert_float_to_string(billing_rate)),
+            Some(billing_rate) => {
+                let api_response =
+                    synthesize_graphql_response(ctx, &convert_float_to_string(billing_rate), None)
+                        .ok_or_else(|| {
+                            tracing::error!("Failed to synthesize response!");
+                            ExtendedError::new("Bad Request", StatusCode::BAD_REQUEST.as_str())
+                                .build()
+                        })?;
+                Ok(api_response.into())
+            }
             None => Err(ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()),
         }
     }
 
-    pub async fn fetch_ratecards(&self, ctx: &Context<'_>) -> async_graphql::Result<Vec<Ratecard>> {
+    pub async fn fetch_ratecards(
+        &self,
+        ctx: &Context<'_>,
+    ) -> async_graphql::Result<GraphQLApiResponse<Vec<Ratecard>>> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .map_err(|e| {
@@ -432,13 +461,17 @@ impl Query {
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
-        Ok(ratecards)
+        let api_response = synthesize_graphql_response(ctx, &ratecards, None).ok_or_else(|| {
+            tracing::error!("Failed to synthesize response!");
+            ExtendedError::new("Bad Request", StatusCode::BAD_REQUEST.as_str()).build()
+        })?;
+        Ok(api_response.into())
     }
 
     pub async fn fetch_service_rates(
         &self,
         ctx: &Context<'_>,
-    ) -> async_graphql::Result<Vec<ServiceRate>> {
+    ) -> async_graphql::Result<GraphQLApiResponse<Vec<ServiceRate>>> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .map_err(|e| {
@@ -457,18 +490,23 @@ impl Query {
                     .build()
             })?;
 
-        let ratecards: Vec<ServiceRate> = query_results.take(0).map_err(|e| {
+        let service_rates: Vec<ServiceRate> = query_results.take(0).map_err(|e| {
             tracing::error!("rate deserialization error: {}", e);
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
-        Ok(ratecards)
+        let api_response =
+            synthesize_graphql_response(ctx, &service_rates, None).ok_or_else(|| {
+                tracing::error!("Failed to synthesize response!");
+                ExtendedError::new("Bad Request", StatusCode::BAD_REQUEST.as_str()).build()
+            })?;
+        Ok(api_response.into())
     }
 
     pub async fn fetch_service_requests(
         &self,
         ctx: &Context<'_>,
-    ) -> async_graphql::Result<Vec<ServiceRequest>> {
+    ) -> async_graphql::Result<GraphQLApiResponse<Vec<ServiceRequest>>> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
             .map_err(|e| {
@@ -476,6 +514,25 @@ impl Query {
                 ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str())
                     .build()
             })?;
+
+        let headers = ctx.data::<HeaderMap>().map_err(|e| {
+            tracing::error!("Error HeaderMap: {:?}", e);
+            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
+        })?;
+
+        let authenticated = confirm_authentication(ctx).await?;
+        let authenticated_ref = &authenticated;
+
+        let authorization_constraint = AuthorizationConstraint {
+            permissions: vec!["read:service_request".into()],
+            privilege: AdminPrivilege::Admin,
+        };
+        let authorized =
+            confirm_authorization(authenticated_ref, &authorization_constraint, headers).await?;
+
+        if !authorized {
+            return Err(ExtendedError::new("Forbidden", StatusCode::FORBIDDEN.as_str()).build());
+        }
 
         // fetch all service rates in DB
         let mut query_results = db
@@ -492,6 +549,12 @@ impl Query {
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
-        Ok(service_requests)
+        let api_response =
+            synthesize_graphql_response(ctx, &service_requests, Some(authenticated_ref))
+                .ok_or_else(|| {
+                    tracing::error!("Failed to synthesize response!");
+                    ExtendedError::new("Bad Request", StatusCode::BAD_REQUEST.as_str()).build()
+                })?;
+        Ok(api_response.into())
     }
 }

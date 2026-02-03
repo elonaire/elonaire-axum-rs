@@ -1,5 +1,6 @@
 use async_graphql::{ComplexObject, Enum, InputObject, SimpleObject};
 
+use lib::utils::models::UploadedFileId;
 use serde::{Deserialize, Serialize};
 use surrealdb::{sql::Datetime, RecordId};
 
@@ -9,7 +10,9 @@ pub struct BlogPostInput {
     pub short_description: String,
     pub status: Option<BlogStatus>,
     pub thumbnail: String,
-    pub content_file: String,
+    pub content: String,
+    #[graphql(skip)]
+    pub content_file: Option<RecordId>,
     pub category: BlogCategory,
     pub is_featured: Option<bool>,
     pub is_premium: Option<bool>,
@@ -24,8 +27,7 @@ pub struct BlogPost {
     pub short_description: String,
     pub status: Option<BlogStatus>,
     pub thumbnail: String,
-    #[graphql(skip)]
-    pub content_file: RecordId,
+    pub content_file: UploadedFileId,
     pub content: Option<String>,
     pub category: BlogCategory,
     pub link: String,
@@ -59,7 +61,7 @@ pub struct BlogPostUpdate {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub thumbnail: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub content_file: Option<String>,
+    pub content: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub category: Option<BlogCategory>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -111,18 +113,14 @@ pub struct BlogComment {
     #[graphql(skip)]
     pub id: RecordId,
     pub content: String,
-    #[graphql(skip)]
-    pub created_at: Datetime,
+    pub created_at: String,
+    pub updated_at: String,
 }
 
 #[ComplexObject]
 impl BlogPost {
     async fn id(&self) -> String {
         self.id.key().to_string()
-    }
-
-    async fn content_file(&self) -> String {
-        self.content_file.key().to_string()
     }
 }
 
