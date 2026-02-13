@@ -38,6 +38,7 @@ pub struct BlogPost {
     pub is_featured: Option<bool>,
     pub is_premium: Option<bool>,
     pub comments: Option<Vec<BlogComment>>,
+    pub read_time: Option<u32>,
     pub created_at: Option<String>,
     pub updated_at: Option<String>,
 }

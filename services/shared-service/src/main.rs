@@ -1,5 +1,6 @@
 mod database;
 mod graphql;
+mod utils;
 
 use std::{
     env,

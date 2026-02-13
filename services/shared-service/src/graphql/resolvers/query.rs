@@ -10,10 +10,15 @@ use reqwest::Client;
 use surrealdb::{engine::remote::ws::Client as SurrealClient, RecordId, Surreal};
 use tonic::transport::Channel;
 
-use crate::graphql::schemas::{
-    blog::{self, BlogPost, BlogStatus, FetchBlogPostsQueryFilters},
-    shared::{self, BillingInterval, GraphQLApiResponse, Ratecard, ServiceRate, ServiceRequest},
-    user::{self, PublicSiteResources, UserResources},
+use crate::{
+    graphql::schemas::{
+        blog::{self, BlogPost, BlogStatus, FetchBlogPostsQueryFilters},
+        shared::{
+            self, BillingInterval, GraphQLApiResponse, Ratecard, ServiceRate, ServiceRequest,
+        },
+        user::{self, PublicSiteResources, UserResources},
+    },
+    utils::read_time::calculate_read_time_minutes,
 };
 
 use lib::{
@@ -63,10 +68,17 @@ impl Query {
                 ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
             })?;
 
-        let result: Vec<blog::BlogPost> = query_result.take(0).map_err(|e| {
+        let mut result: Vec<blog::BlogPost> = query_result.take(0).map_err(|e| {
             tracing::error!("blog_posts deserialization error: {}", e);
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
+
+        for blog_post in &mut result {
+            if let Some(content) = &blog_post.content {
+                let read_time_minutes = calculate_read_time_minutes(&content);
+                blog_post.read_time = Some(read_time_minutes);
+            };
+        }
 
         let api_response = synthesize_graphql_response(ctx, &result, None).ok_or_else(|| {
             tracing::error!("Failed to synthesize response!");
@@ -225,7 +237,13 @@ impl Query {
             })?;
 
         match blog_post_db_query.take(0)? {
-            Some(blog_post) => {
+            Some(mut blog_post) => {
+                let blog_post_ref: &mut BlogPost = &mut blog_post;
+                if let Some(content) = &blog_post_ref.content {
+                    let read_time_minutes = calculate_read_time_minutes(&content);
+                    blog_post.read_time = Some(read_time_minutes);
+                };
+
                 let api_response =
                     synthesize_graphql_response(ctx, &blog_post, None).ok_or_else(|| {
                         tracing::error!("Failed to synthesize response!");
