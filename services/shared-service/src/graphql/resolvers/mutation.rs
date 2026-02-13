@@ -593,7 +593,7 @@ impl Mutation {
             .build()
         })?;
 
-        blog_post.content_file = Some(added_file.id);
+        blog_post.content_file = Some(RecordId::from(added_file.id));
         tracing::debug!("blog_post: {:?}", blog_post);
 
         let mut database_transaction = db
@@ -603,10 +603,11 @@ impl Mutation {
             LET $user = (SELECT VALUE id FROM type::table($table) WHERE user_id = $user_id LIMIT 1);
 
             LET $blog_post = (CREATE blog_post CONTENT $blog_post_input RETURN AFTER)[0];
-            LET $blog_post_id = (SELECT VALUE id FROM $blog_post);
-            RELATE $user->wrote->$blog_post_id CONTENT $blog_post_input;
+            LET $blog_post_id = (SELECT VALUE id FROM ONLY $blog_post);
+            RELATE $user->wrote->$blog_post_id;
 
-            RETURN $blog_post;
+            LET $full_blog_post = (SELECT * FROM ONLY $blog_post_id FETCH content_file);
+            RETURN $full_blog_post;
             COMMIT TRANSACTION;
             ",
             )

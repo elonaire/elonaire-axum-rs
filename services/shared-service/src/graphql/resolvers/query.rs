@@ -11,7 +11,7 @@ use surrealdb::{engine::remote::ws::Client as SurrealClient, RecordId, Surreal};
 use tonic::transport::Channel;
 
 use crate::graphql::schemas::{
-    blog::{self, BlogPost, BlogStatus},
+    blog::{self, BlogPost, BlogStatus, FetchBlogPostsQueryFilters},
     shared::{self, BillingInterval, GraphQLApiResponse, Ratecard, ServiceRate, ServiceRequest},
     user::{self, PublicSiteResources, UserResources},
 };
@@ -38,7 +38,7 @@ impl Query {
     pub async fn fetch_blog_posts(
         &self,
         ctx: &Context<'_>,
-        status: BlogStatus,
+        filters: Option<FetchBlogPostsQueryFilters>,
     ) -> async_graphql::Result<GraphQLApiResponse<Vec<blog::BlogPost>>> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
@@ -48,9 +48,15 @@ impl Query {
                     .build()
             })?;
 
+        tracing::debug!("passed filters: {:?}", filters);
+
         let mut query_result = db
-            .query("SELECT *, ->has_comment->comment[*] AS comments FROM blog_post WHERE status = $status")
-            .bind(("status", status))
+            .query("
+                <set> array::flatten([
+                   	(SELECT *, (<-wrote<-user_id)[0].* AS author, (SELECT *, (<-wrote<-user_id)[0][*] AS author, array::len(->has_reply) AS reply_count FROM ->has_comment->comment) AS comments FROM blog_post WHERE ($filters.status != NONE AND $filters.is_featured = NONE AND status = $filters.status) OR ($filters.status != NONE AND $filters.is_featured != NONE AND is_featured = $filters.is_featured AND status = $filters.status) OR ($filters.status = NONE AND $filters.is_featured != NONE AND is_featured = $filters.is_featured) FETCH content_file)
+                ]);
+                ")
+            .bind(("filters", filters))
             .await
             .map_err(|e| {
                 tracing::error!("DB Query error: {}", e);
@@ -87,7 +93,7 @@ impl Query {
         let authenticated_ref = &authenticated;
 
         let mut query_results = db
-            .query("SELECT *, ->has_comment->comment[*] AS comments FROM blog_post WHERE ->(user_id WHERE user_id = $external_user_id)")
+            .query("SELECT *, (SELECT *, (<-wrote<-user_id)[0][*] AS author, array::len(->has_reply) AS reply_count FROM ->has_comment->comment) AS comments FROM blog_post WHERE <-wrote<-(user_id WHERE user_id = $external_user_id) FETCH content_file")
             .bind(("external_user_id", authenticated_ref.sub.to_owned()))
             .await
             .map_err(|e| {
@@ -127,7 +133,7 @@ impl Query {
             })?;
 
         let mut query_results = db
-            .query("SELECT *, ->has_comment->comment[*] AS comments FROM blog_post WHERE status = 'Published'")
+            .query("SELECT *, (<-wrote<-user_id)[0].* AS author, (SELECT *, (<-wrote<-user_id)[0][*] AS author, array::len(->has_reply) AS reply_count FROM ->has_comment->comment) AS comments FROM blog_post WHERE status = 'Published' FETCH content_file")
             .query("SELECT * FROM professional_details WHERE active = true")
             .query("SELECT *, ->uses_skill->skill[*] AS skills FROM portfolio")
             .query("SELECT *, ->achievement[*] AS achievements FROM resume")
@@ -197,16 +203,12 @@ impl Query {
                     .build()
             })?;
 
-        let headers = ctx.data_opt::<HeaderMap>().ok_or_else(|| {
-            ExtendedError::new("Unauthorized", StatusCode::UNAUTHORIZED.as_str()).build()
-        })?;
-
         let mut blog_post_db_query = db
             .query(
                 "
                 BEGIN TRANSACTION;
                 LET $blog_id = type::thing('blog_post', $blog_id_or_slug);
-                LET $blog_post = SELECT *, ->has_comment->comment[*] AS comments FROM ONLY blog_post WHERE id = $blog_id OR link = $blog_id_or_slug LIMIT 1;
+                LET $blog_post = SELECT *, (<-wrote<-user_id)[0].* AS author, (SELECT *, (<-wrote<-user_id)[0][*] AS author, array::len(->has_reply) AS reply_count FROM ->has_comment->comment) AS comments FROM ONLY blog_post WHERE id = $blog_id_or_slug OR link = $blog_id_or_slug LIMIT 1 FETCH content_file;
                 RETURN $blog_post;
                 COMMIT TRANSACTION;
                 "
@@ -222,104 +224,19 @@ impl Query {
                 .build()
             })?;
 
-        let blog_post: Option<BlogPost> = blog_post_db_query.take(0)?;
-
-        if blog_post.is_none() {
-            return Err(
+        match blog_post_db_query.take(0)? {
+            Some(blog_post) => {
+                let api_response =
+                    synthesize_graphql_response(ctx, &blog_post, None).ok_or_else(|| {
+                        tracing::error!("Failed to synthesize response!");
+                        ExtendedError::new("Bad Request", StatusCode::BAD_REQUEST.as_str()).build()
+                    })?;
+                Ok(api_response.into())
+            }
+            None => Err(
                 ExtendedError::new("Blog post not found", StatusCode::NOT_FOUND.as_str()).build(),
-            );
+            ),
         }
-
-        let mut blog_post = blog_post.unwrap();
-
-        let mut file_id_db_query = db
-            .query(
-                "
-                SELECT * FROM ONLY file_id WHERE id = $internal_file_id LIMIT 1
-                ",
-            )
-            .bind(("internal_file_id", blog_post.content_file.clone()))
-            .await
-            .map_err(|e| {
-                tracing::debug!("DB Query error: {}", e);
-                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str())
-                    .build()
-            })?;
-
-        let uploaded_file: Option<UploadedFileId> = file_id_db_query.take(0)?;
-
-        if uploaded_file.is_none() {
-            return Err(
-                ExtendedError::new("Content not found", StatusCode::NOT_FOUND.as_str()).build(),
-            );
-        }
-
-        let mut request = tonic::Request::new(FetchFileNameRequest {
-            file_id: uploaded_file.unwrap().file_id,
-        });
-
-        let auth_header = headers.get(AUTHORIZATION);
-        let cookie_header = headers.get(COOKIE);
-
-        let auth_metadata: AuthMetaData<FetchFileNameRequest> = AuthMetaData {
-            auth_header,
-            cookie_header,
-            constructed_grpc_request: Some(&mut request),
-        };
-
-        let files_service_grpc = env::var("FILES_SERVICE_GRPC").map_err(|e| {
-            tracing::debug!("Missing FILES_SERVICE_GRPC environment variable: {}", e);
-            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
-        })?;
-
-        let mut files_grpc_client = create_grpc_client::<
-            FetchFileNameRequest,
-            FilesServiceClient<Channel>,
-        >(&files_service_grpc, true, Some(auth_metadata))
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to connect to Files service: {}", e);
-            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
-        })?;
-
-        let res = files_grpc_client
-            .fetch_file_name(request)
-            .await
-            .map_err(|e| {
-                tracing::error!("Failed to fetch file name from Files service: {}", e);
-                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str())
-                    .build()
-            })?;
-
-        let file_name: String = res.into_inner().file_name;
-
-        let base_url = std::env::var("FILES_SERVICE").map_err(|e| {
-            tracing::error!("FILES_SERVICE environment variable not set: {}", e);
-
-            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
-        })?;
-        let url = format!("{}/view/{}", base_url, file_name);
-
-        // Create an HTTP client
-        let client = Client::new();
-
-        // Fetch the content from the URL
-        let text = client.get(&url).send().await.map_err(|e| {
-            tracing::error!("Failed to connect to Files service: {}", e);
-            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
-        })?;
-        let content = text.text().await.map_err(|e| {
-            tracing::error!("Failed to parse response from Files service: {}", e);
-            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
-        })?;
-        let blog_content = markdown::to_html(&content);
-
-        blog_post.content = Some(blog_content);
-        let api_response = synthesize_graphql_response(ctx, &blog_post, None).ok_or_else(|| {
-            tracing::error!("Failed to synthesize response!");
-            ExtendedError::new("Bad Request", StatusCode::BAD_REQUEST.as_str()).build()
-        })?;
-        Ok(api_response.into())
     }
 
     pub async fn fetch_messages(

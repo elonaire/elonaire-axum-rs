@@ -1,6 +1,6 @@
 use async_graphql::{ComplexObject, Enum, InputObject, SimpleObject};
 
-use lib::utils::models::UploadedFileId;
+use lib::utils::models::{UploadedFileId, UserId};
 use serde::{Deserialize, Serialize};
 use surrealdb::{sql::Datetime, RecordId};
 
@@ -27,7 +27,10 @@ pub struct BlogPost {
     pub short_description: String,
     pub status: Option<BlogStatus>,
     pub thumbnail: String,
+    #[graphql(skip)]
     pub content_file: UploadedFileId,
+    #[graphql(skip)]
+    pub author: UserId,
     pub content: Option<String>,
     pub category: BlogCategory,
     pub link: String,
@@ -113,6 +116,9 @@ pub struct BlogComment {
     #[graphql(skip)]
     pub id: RecordId,
     pub content: String,
+    pub reply_count: u32,
+    #[graphql(skip)]
+    pub author: UserId,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -122,6 +128,14 @@ impl BlogPost {
     async fn id(&self) -> String {
         self.id.key().to_string()
     }
+
+    async fn content_file(&self) -> String {
+        self.content_file.file_id.to_owned()
+    }
+
+    async fn author(&self) -> String {
+        self.author.user_id.to_owned()
+    }
 }
 
 #[ComplexObject]
@@ -129,4 +143,36 @@ impl BlogComment {
     async fn id(&self) -> String {
         self.id.key().to_string()
     }
+
+    async fn author(&self) -> String {
+        self.author.user_id.to_owned()
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, InputObject)]
+pub struct FetchBlogPostsQueryFilters {
+    pub status: Option<BlogStatus>,
+    pub is_featured: Option<bool>,
+    // pub is_premium: Option<bool>,
+    pub sort_configs: Option<SortConfigs>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, Enum, Copy, Eq, PartialEq)]
+pub enum BlogPostsFilterSortBy {
+    DateOfCreation,
+    Reads,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, Enum, Copy, Eq, PartialEq)]
+pub enum SortOrder {
+    #[graphql(name = "Asc")]
+    Asc,
+    #[graphql(name = "Desc")]
+    Desc,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, InputObject)]
+pub struct SortConfigs {
+    pub sort_by: BlogPostsFilterSortBy,
+    pub sort_order: SortOrder,
 }

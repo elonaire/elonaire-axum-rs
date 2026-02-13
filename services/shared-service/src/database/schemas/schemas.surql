@@ -148,13 +148,14 @@ DEFINE FIELD updated_at ON TABLE rate TYPE datetime
 
 
 -- A schema-full blog post table.
-DEFINE TABLE blog_post SCHEMAFULL TYPE NORMAL;
+DEFINE TABLE OVERWRITE blog_post SCHEMAFULL TYPE NORMAL;
 -- define some fields.
 DEFINE FIELD title ON TABLE blog_post TYPE string;
 DEFINE FIELD short_description ON TABLE blog_post TYPE string;
 DEFINE FIELD thumbnail ON TABLE blog_post TYPE string
   ASSERT string::is::url($value);
 DEFINE FIELD OVERWRITE content_file ON TABLE blog_post TYPE record<file_id>;
+DEFINE FIELD content ON TABLE blog_post TYPE string;
 DEFINE FIELD category ON TABLE blog_post TYPE string
 -- Allow only these values in the array
   ASSERT $value INSIDE ["WebDevelopment", "MobileDevelopment", "ArtificialIntelligence", "Technology", "Lifestyle"];
