@@ -14,19 +14,19 @@ impl SyntaxHighlighter {
     /// Create a new syntax highlighter with default syntax definitions and themes
     pub fn new() -> Self {
         Self {
-            syntax_set: SyntaxSet::load_defaults_newlines(),
+            syntax_set: SyntaxSet::load_defaults_nonewlines(),
             theme_set: ThemeSet::load_defaults(),
         }
     }
 
     /// Highlight all code blocks in the HTML string
     pub fn highlight_html(&self, html: &str) -> String {
-        self.highlight_html_with_theme(html, "base16-ocean.dark")
+        self.highlight_html_with_theme(html, "base16-mocha.dark")
     }
 
     /// Highlight all code blocks in the HTML string with a specific theme
     pub fn highlight_html_with_theme(&self, html: &str, theme_name: &str) -> String {
-        let document = Html::parse_document(html);
+        let document = Html::parse_fragment(html);
         let pre_selector = Selector::parse("pre").unwrap();
         let code_selector = Selector::parse("code").unwrap();
 
@@ -46,20 +46,8 @@ impl SyntaxHighlighter {
                     continue;
                 }
 
-                // DEBUG: Print what we're working with
-                // println!("=== CODE BLOCK DEBUG ===");
-                // println!("Language: {:?}", self.detect_language(&code_element));
-                // println!("Code length: {} chars", code_text.len());
-                // println!("Newline count: {}", code_text.matches('\n').count());
-                // println!("First 200 chars: {:?}", &code_text[..code_text.len().min(200)]);
-
                 let language = self.detect_language(&code_element);
                 let highlighted = self.highlight_code(&code_text, &language, theme);
-
-                // println!("Highlighted length: {} chars", highlighted.len());
-                // println!("Span count: {}", highlighted.matches("<span").count());
-                // println!("First 200 chars of output: {:?}", &highlighted[..highlighted.len().min(200)]);
-                // println!("========================\n");
 
                 // Get original HTML fragments
                 let pre_html = pre_element.html();
@@ -121,13 +109,12 @@ impl SyntaxHighlighter {
                 if self.syntax_set.find_syntax_by_extension("ts").is_some() {
                     detected
                 } else {
-                    println!("TypeScript syntax not found, falling back to JavaScript");
                     "js".to_string()
                 }
             }
             // JSX → JavaScript
             "jsx" => "js".to_string(),
-            _ => detected,
+            other => other.to_owned(),
         }
     }
 
@@ -141,24 +128,18 @@ impl SyntaxHighlighter {
         // Find the syntax definition for the language
         let syntax = self
             .syntax_set
-            .find_syntax_by_extension(language)
-            .or_else(|| self.syntax_set.find_syntax_by_name(language))
+            .find_syntax_by_token(language)
+            // .or_else(|| self.syntax_set.find_syntax_by_token(language))
             .unwrap_or_else(|| self.syntax_set.find_syntax_plain_text());
-
-        println!("Using syntax: {}", syntax.name);
 
         let mut highlighter = HighlightLines::new(syntax, theme);
         let mut highlighted_html = String::new();
 
         // Process line by line
-        for (i, line) in LinesWithEndings::from(code).enumerate() {
+        for line in LinesWithEndings::from(code) {
             let ranges: Vec<(Style, &str)> = highlighter
                 .highlight_line(line, &self.syntax_set)
                 .unwrap_or_default();
-
-            if i == 0 {
-                println!("First line has {} tokens", ranges.len());
-            }
 
             // Convert to HTML spans (without background color)
             let html = styled_line_to_highlighted_html(&ranges[..], IncludeBackground::No)

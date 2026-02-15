@@ -53,8 +53,6 @@ impl Query {
                     .build()
             })?;
 
-        tracing::debug!("passed filters: {:?}", filters);
-
         let mut query_result = db
             .query("
                 <set> array::flatten([
@@ -232,7 +230,7 @@ impl Query {
             .bind(("blog_id_or_slug", blog_id_or_slug))
             .await
             .map_err(|e| {
-                tracing::debug!("DB Query error: {}", e);
+                tracing::error!("DB Query error: {}", e);
                 ExtendedError::new(
                     "Server Error",
                     StatusCode::INTERNAL_SERVER_ERROR.as_str(),

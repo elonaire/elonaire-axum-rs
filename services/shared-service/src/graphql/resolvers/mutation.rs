@@ -94,13 +94,13 @@ impl Mutation {
             .bind(("professional_details_input", professional_details))
             .await
             .map_err(|e| {
-                tracing::debug!("DB Query Failed: {}", e);
+                tracing::error!("DB Query Failed: {}", e);
                 // Error::new("Internal Server Error.")
                 ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
             })?;
 
         let response: Option<UserProfessionalInfo> = database_transaction.take(0).map_err(|e| {
-            tracing::debug!("Deserialization Failed: {}", e);
+            tracing::error!("Deserialization Failed: {}", e);
             ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
         })?;
 
@@ -179,7 +179,7 @@ impl Mutation {
             .bind(("user_service_input", user_service))
             .await
             .map_err(|e| {
-                tracing::debug!("DB Query Error: {}", e);
+                tracing::error!("DB Query Error: {}", e);
 
                 ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
             })?;
@@ -278,7 +278,7 @@ impl Mutation {
             .bind(("skills", skills))
             .await
             .map_err(|e| {
-                tracing::debug!("DB Query Error: {}", e);
+                tracing::error!("DB Query Error: {}", e);
 
                 ExtendedError::new(
                     "Failed",
@@ -355,7 +355,7 @@ impl Mutation {
         .await;
 
         if added_id.is_none() {
-            tracing::debug!("Failed to add user_id");
+            tracing::error!("Failed to add user_id");
             return Err(ExtendedError::new(
                 "Something went wrong",
                 StatusCode::INTERNAL_SERVER_ERROR.as_str(),
@@ -383,7 +383,7 @@ impl Mutation {
             .bind(("achievements", achievements))
             .await
             .map_err(|e| {
-                tracing::debug!("DB Query Error: {}", e);
+                tracing::error!("DB Query Error: {}", e);
 
                 ExtendedError::new(
                     "Failed",
@@ -476,7 +476,7 @@ impl Mutation {
             .bind(("skill_input", skill))
             .await
             .map_err(|e| {
-                tracing::debug!("DB Query Error: {}", e);
+                tracing::error!("DB Query Error: {}", e);
 
                 ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
             })?;
@@ -594,7 +594,6 @@ impl Mutation {
         })?;
 
         blog_post.content_file = Some(RecordId::from(added_file.id));
-        tracing::debug!("blog_post: {:?}", blog_post);
 
         let mut database_transaction = db
             .query(
@@ -617,7 +616,7 @@ impl Mutation {
             // .bind(("file_id", added_file.id))
             .await
             .map_err(|e| {
-                tracing::debug!("DB Query Error: {}", e);
+                tracing::error!("DB Query Error: {}", e);
                 Error::new("Internal Server Error")
             })?;
 
@@ -709,7 +708,7 @@ impl Mutation {
         .bind(("user_table", "user_id"))
         .await
         .map_err(|e| {
-            tracing::debug!("DB Query Error: {}", e);
+            tracing::error!("DB Query Error: {}", e);
 
             ExtendedError::new(
                 "Failed",
@@ -805,7 +804,7 @@ impl Mutation {
         .bind(("user_table", "user_id"))
         .await
         .map_err(|e| {
-            tracing::debug!("DB Query Error: {}", e);
+            tracing::error!("DB Query Error: {}", e);
 
             ExtendedError::new(
                 "Failed",
@@ -897,7 +896,7 @@ impl Mutation {
         .bind(("blog_post_id", blog_post_id))
         .await
         .map_err(|e| {
-            tracing::debug!("DB Query Error: {}", e);
+            tracing::error!("DB Query Error: {}", e);
 
             ExtendedError::new(
                 "Failed",
@@ -988,7 +987,7 @@ impl Mutation {
         .bind(("comment_id", comment_id))
         .await
         .map_err(|e| {
-            tracing::debug!("DB Query Error: {}", e);
+            tracing::error!("DB Query Error: {}", e);
 
             ExtendedError::new(
                 "Failed",
@@ -1187,7 +1186,7 @@ impl Mutation {
             .bind(("ratecard_input_metadata", ratecard_input_metadata))
             .await
             .map_err(|e| {
-                tracing::debug!("DB Query Error: {}", e);
+                tracing::error!("DB Query Error: {}", e);
 
                 ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
             })?;
@@ -1317,7 +1316,7 @@ impl Mutation {
             ))
             .await
             .map_err(|e| {
-                tracing::debug!("DB Query Error: {}", e);
+                tracing::error!("DB Query Error: {}", e);
 
                 ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
             })?;
@@ -1441,7 +1440,7 @@ impl Mutation {
             .bind(("service_rate_input", service_rate_input))
             .await
             .map_err(|e| {
-                tracing::debug!("DB Query Error: {}", e);
+                tracing::error!("DB Query Error: {}", e);
 
                 ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
             })?;
