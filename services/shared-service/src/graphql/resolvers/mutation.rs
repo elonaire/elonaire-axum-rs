@@ -606,7 +606,7 @@ impl Mutation {
             LET $blog_post_id = (SELECT VALUE id FROM ONLY $blog_post);
             RELATE $user->wrote->$blog_post_id;
 
-            LET $full_blog_post = (SELECT * FROM ONLY $blog_post_id FETCH content_file);
+            LET $full_blog_post = (SELECT *, (<-wrote<-user_id)[0].* AS author, (SELECT *, (<-wrote<-user_id)[0][*] AS author, array::len(->has_reply) AS reply_count FROM ->has_comment->comment) AS comments FROM ONLY $blog_post_id FETCH content_file);
             RETURN $full_blog_post;
             COMMIT TRANSACTION;
             ",

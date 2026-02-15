@@ -18,7 +18,7 @@ use crate::{
         },
         user::{self, PublicSiteResources, UserResources},
     },
-    utils::read_time::calculate_read_time_minutes,
+    utils::{read_time::calculate_read_time_minutes, syntax_highlighter::SyntaxHighlighter},
 };
 
 use lib::{
@@ -73,10 +73,14 @@ impl Query {
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
+        let highlighter = SyntaxHighlighter::new();
+
         for blog_post in &mut result {
             if let Some(content) = &blog_post.content {
                 let read_time_minutes = calculate_read_time_minutes(&content);
                 blog_post.read_time = Some(read_time_minutes);
+                let highlighted = highlighter.highlight_html(&content);
+                blog_post.content = Some(highlighted);
             };
         }
 
@@ -236,13 +240,19 @@ impl Query {
                 .build()
             })?;
 
-        match blog_post_db_query.take(0)? {
+        let blog_post: Option<BlogPost> = blog_post_db_query.take(0)?;
+
+        match blog_post {
             Some(mut blog_post) => {
-                let blog_post_ref: &mut BlogPost = &mut blog_post;
-                if let Some(content) = &blog_post_ref.content {
+                let highlighter = SyntaxHighlighter::new();
+
+                if let Some(content) = blog_post.content {
                     let read_time_minutes = calculate_read_time_minutes(&content);
                     blog_post.read_time = Some(read_time_minutes);
-                };
+
+                    let highlighted = highlighter.highlight_html(&content);
+                    blog_post.content = Some(highlighted);
+                }
 
                 let api_response =
                     synthesize_graphql_response(ctx, &blog_post, None).ok_or_else(|| {

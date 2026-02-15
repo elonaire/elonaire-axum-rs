@@ -29,6 +29,7 @@ prost = "0.13.5"
 tonic-middleware = "0.2.3"
 uuid = "1.20.0"
 scraper = "0.25.0"
+syntect = "5.3.0"
 
 # [build-dependencies]
 # tonic-build = "0.12.3"
