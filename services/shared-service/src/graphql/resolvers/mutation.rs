@@ -879,11 +879,14 @@ impl Mutation {
             BEGIN TRANSACTION;
             LET $user = (SELECT VALUE id FROM ONLY type::table($user_table) WHERE user_id = $user_id LIMIT 1);
             LET $blog_post = type::thing('blog_post', $blog_post_id);
+            IF !$blog_post.exists() {
+                THROW 'Invalid Input';
+            };
             LET $existing_reaction = (SELECT VALUE id FROM ONLY reaction WHERE ->(blog_post WHERE id = $blog_post) AND <-(user_id WHERE id = $user) LIMIT 1);
-            LET $reaction = IF $existing_reaction.exists()
-               	{ (UPDATE $existing_reaction MERGE $reaction_input)[0] }
-                            ELSE
-               	{ (RELATE $user -> reaction -> $blog_post CONTENT $reaction_input RETURN AFTER)[0] }
+            LET $reaction = IF $existing_reaction != NONE
+           	{ (UPDATE $existing_reaction MERGE $reaction_input)[0] }
+                        ELSE
+           	{ (RELATE $user -> reaction -> $blog_post CONTENT $reaction_input RETURN AFTER)[0] }
             ;
             RETURN $reaction;
             COMMIT TRANSACTION;
