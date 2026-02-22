@@ -43,6 +43,9 @@ pub struct BlogPost {
     pub read_time: Option<u32>,
     pub reaction_count: Option<u32>,
     pub current_user_reaction: Option<Reaction>,
+    pub bookmarks_count: Option<u32>,
+    pub shares_count: Option<u32>,
+    pub current_user_bookmarked: Option<bool>,
     pub created_at: Option<String>,
     pub updated_at: Option<String>,
 }

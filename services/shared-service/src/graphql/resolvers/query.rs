@@ -22,15 +22,18 @@ use crate::{
 };
 
 use lib::{
-    integration::grpc::clients::files_service::{
-        files_service_client::FilesServiceClient, FetchFileNameRequest,
+    integration::{
+        foreign_key::add_foreign_key_if_not_exists,
+        grpc::clients::files_service::{
+            files_service_client::FilesServiceClient, FetchFileNameRequest,
+        },
     },
     middleware::auth::graphql::confirm_authentication,
     utils::{
         api_response::synthesize_graphql_response,
         custom_error::ExtendedError,
         grpc::{confirm_authorization, create_grpc_client, AuthMetaData},
-        models::{AdminPrivilege, AuthorizationConstraint, UploadedFileId},
+        models::{AdminPrivilege, AuthorizationConstraint, ForeignKey, UploadedFileId, UserId},
         serialization::convert_float_to_string,
     },
 };
@@ -219,7 +222,30 @@ impl Query {
 
         // if the user is authenticated, get the user id
         let user_id = match confirm_authentication(ctx).await {
-            Ok(user) => user.sub,
+            Ok(auth_status) => {
+                let user_fk = ForeignKey {
+                    table: "user_id".into(),
+                    column: "user_id".into(),
+                    foreign_key: auth_status.sub.clone(),
+                };
+
+                let added_id = add_foreign_key_if_not_exists::<
+                    Extension<Arc<Surreal<SurrealClient>>>,
+                    UserId,
+                >(db, user_fk)
+                .await;
+
+                if added_id.is_none() {
+                    tracing::error!("Failed to add user_id");
+                    return Err(ExtendedError::new(
+                        "Something went wrong",
+                        StatusCode::INTERNAL_SERVER_ERROR.as_str(),
+                    )
+                    .build());
+                }
+
+                auth_status.sub
+            }
             Err(_e) => String::new(),
         };
 
@@ -228,7 +254,7 @@ impl Query {
                 "
                 BEGIN TRANSACTION;
                 LET $blog_id = type::thing('blog_post', $blog_id_or_slug);
-                LET $blog_post = (SELECT *, (<-wrote<-user_id)[0][*] AS author, (SELECT *, (<-wrote<-user_id)[0][*] AS author, array::len(->has_reply) AS reply_count FROM ->has_comment->comment) AS comments, array::len(<-reaction) AS reaction_count, (<-(reaction WHERE <-(user_id WHERE user_id = $user_id)))[0][*] AS current_user_reaction FROM ONLY blog_post WHERE id = $blog_id_or_slug OR link = $blog_id_or_slug LIMIT 1 FETCH content_file);
+                LET $blog_post = (SELECT *, (<-wrote<-user_id)[0][*] AS author, (SELECT *, (<-wrote<-user_id)[0][*] AS author, array::len(->has_reply) AS reply_count FROM ->has_comment->comment) AS comments, array::len(<-reaction) AS reaction_count, (<-(reaction WHERE <-(user_id WHERE user_id = $user_id)))[0][*] AS current_user_reaction, array::len(<-bookmark) AS bookmarks_count, array::len(<-share) AS shares_count, array::len(<-(bookmark WHERE <-(user_id WHERE user_id = $user_id))) > 0 AS current_user_bookmarked FROM ONLY blog_post WHERE id = $blog_id_or_slug OR link = $blog_id_or_slug LIMIT 1 FETCH content_file);
                 RETURN $blog_post;
                 COMMIT TRANSACTION;
                 "

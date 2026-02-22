@@ -238,6 +238,8 @@ pub enum BillingInterval {
 #[graphql(concrete(name = "UserResourcesResponse", params(UserResources)))]
 #[graphql(concrete(name = "PublicSiteResourcesResponse", params(PublicSiteResources)))]
 #[graphql(concrete(name = "StringResponse", params(String)))]
+#[graphql(concrete(name = "BoolResponse", params(bool)))]
+#[graphql(concrete(name = "U32Response", params(u32)))]
 pub struct GraphQLApiResponse<T: OutputType> {
     pub data: T,
     pub metadata: GraphQLApiResponseMetadata,

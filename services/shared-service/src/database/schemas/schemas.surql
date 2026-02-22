@@ -276,11 +276,27 @@ DEFINE FIELD created_at ON TABLE service_request TYPE datetime
 DEFINE FIELD updated_at ON TABLE service_request TYPE datetime
   VALUE time::now();
 
---
+
 -- Relationship between service_request, ratecard and service.
 DEFINE TABLE contains SCHEMAFULL TYPE RELATION IN service_request | ratecard OUT service;
 DEFINE INDEX ratecardServiceRequestIndex ON TABLE contains
 COLUMNS in, out UNIQUE;
+
+-- Relationship between bookmark, blog_post and user
+DEFINE TABLE bookmark SCHEMAFULL TYPE RELATION IN user_id OUT blog_post;
+DEFINE INDEX bookmarkIndex ON TABLE bookmark
+COLUMNS in, out UNIQUE;
+DEFINE FIELD created_at ON TABLE bookmark TYPE datetime
+  DEFAULT time::now() READONLY;
+DEFINE FIELD updated_at ON TABLE bookmark TYPE datetime
+  VALUE time::now();
+
+-- Relationship between share, blog_post and user
+DEFINE TABLE share SCHEMAFULL TYPE RELATION IN user_id OUT blog_post;
+DEFINE FIELD created_at ON TABLE share TYPE datetime
+  DEFAULT time::now() READONLY;
+DEFINE FIELD updated_at ON TABLE share TYPE datetime
+  VALUE time::now();
 
 /* Migrations */
 -- Migration for blog post table

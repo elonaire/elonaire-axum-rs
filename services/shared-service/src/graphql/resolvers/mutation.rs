@@ -1468,4 +1468,173 @@ impl Mutation {
             None => Err(ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()),
         }
     }
+
+    /// Bookmark blog post
+    pub async fn bookmark_blog_post(
+        &self,
+        ctx: &Context<'_>,
+        blog_post_id: String,
+    ) -> async_graphql::Result<GraphQLApiResponse<bool>> {
+        let db = ctx
+            .data::<Extension<Arc<Surreal<SurrealClient>>>>()
+            .map_err(|e| {
+                tracing::error!("Error Surreal Client: {:?}", e);
+                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str())
+                    .build()
+            })?;
+
+        let authenticated = confirm_authentication(ctx).await?;
+        let authenticated_ref = &authenticated;
+
+        let user_fk = ForeignKey {
+            table: "user_id".into(),
+            column: "user_id".into(),
+            foreign_key: authenticated_ref.sub.to_owned(),
+        };
+
+        let added_id = add_foreign_key_if_not_exists::<
+            Extension<Arc<Surreal<SurrealClient>>>,
+            UserId,
+        >(db, user_fk)
+        .await;
+
+        if added_id.is_none() {
+            tracing::error!("Failed to add user_id");
+            return Err(ExtendedError::new(
+                "Something went wrong",
+                StatusCode::INTERNAL_SERVER_ERROR.as_str(),
+            )
+            .build());
+        }
+
+        let mut database_transaction = db
+            .query(
+                "
+                BEGIN TRANSACTION;
+                LET $user = type::thing('user_id', $user_id);
+                LET $blog_post = type::thing('blog_post', $blog_post_id);
+
+                LET $existing_bookmark = (SELECT VALUE id FROM ONLY bookmark WHERE <-(user_id WHERE id = $user) AND ->(blog_post WHERE id = $blog_post) LIMIT 1);
+
+                LET $bookmarked = IF $existing_bookmark == NONE {
+                    RELATE $user -> bookmark -> $blog_post;
+                    true
+                } ELSE {
+                    DELETE $existing_bookmark;
+                    false
+                };
+                RETURN $bookmarked;
+                COMMIT TRANSACTION;
+            ",
+            )
+            .bind(("user_id", added_id.unwrap().id.key().to_string()))
+            .bind(("blog_post_id", blog_post_id))
+            .await
+            .map_err(|e| {
+                tracing::error!("DB Query Error: {}", e);
+
+                ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
+            })?;
+
+        let response: Option<bool> = database_transaction.take(0).map_err(|e| {
+            tracing::error!("Deserialization Error: {:?}", e);
+
+            ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
+        })?;
+
+        match response {
+            Some(bookmarked) => {
+                let api_response =
+                    synthesize_graphql_response(ctx, &bookmarked, Some(authenticated_ref))
+                        .ok_or_else(|| {
+                            tracing::error!("Failed to synthesize response!");
+                            ExtendedError::new("Bad Request", StatusCode::BAD_REQUEST.as_str())
+                                .build()
+                        })?;
+                Ok(api_response.into())
+            }
+            None => Err(ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()),
+        }
+    }
+
+    /// Update blog post share count
+    pub async fn update_blog_post_share_count(
+        &self,
+        ctx: &Context<'_>,
+        blog_post_id: String,
+    ) -> async_graphql::Result<GraphQLApiResponse<u32>> {
+        let db = ctx
+            .data::<Extension<Arc<Surreal<SurrealClient>>>>()
+            .map_err(|e| {
+                tracing::error!("Error Surreal Client: {:?}", e);
+                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str())
+                    .build()
+            })?;
+
+        // if the user is authenticated, get the user id
+        let user_id = match confirm_authentication(ctx).await {
+            Ok(auth_status) => auth_status.sub,
+            Err(_e) => "anonymous".into(),
+        };
+
+        let user_fk = ForeignKey {
+            table: "user_id".into(),
+            column: "user_id".into(),
+            foreign_key: user_id.clone(),
+        };
+
+        let added_id = add_foreign_key_if_not_exists::<
+            Extension<Arc<Surreal<SurrealClient>>>,
+            UserId,
+        >(db, user_fk)
+        .await;
+
+        if added_id.is_none() {
+            tracing::error!("Failed to add user_id");
+            return Err(ExtendedError::new(
+                "Something went wrong",
+                StatusCode::INTERNAL_SERVER_ERROR.as_str(),
+            )
+            .build());
+        }
+
+        let mut database_transaction = db
+            .query(
+                "
+                BEGIN TRANSACTION;
+                LET $user = type::thing('user_id', $user_id);
+                LET $blog_post = type::thing('blog_post', $blog_post_id);
+                RELATE $user -> share -> $blog_post;
+                LET $total = (SELECT count() AS total FROM share WHERE <-(user_id WHERE id = $user) AND ->(blog_post WHERE id = $blog_post))[0]['total'];
+                RETURN $total;
+                COMMIT TRANSACTION;
+            ",
+            )
+            .bind(("user_id", added_id.unwrap().id.key().to_string()))
+            .bind(("blog_post_id", blog_post_id))
+            .await
+            .map_err(|e| {
+                tracing::error!("DB Query Error: {}", e);
+
+                ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
+            })?;
+
+        let response: Option<u32> = database_transaction.take(0).map_err(|e| {
+            tracing::error!("Deserialization Error: {:?}", e);
+
+            ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
+        })?;
+
+        match response {
+            Some(updated_share_count) => {
+                let api_response = synthesize_graphql_response(ctx, &updated_share_count, None)
+                    .ok_or_else(|| {
+                        tracing::error!("Failed to synthesize response!");
+                        ExtendedError::new("Bad Request", StatusCode::BAD_REQUEST.as_str()).build()
+                    })?;
+                Ok(api_response.into())
+            }
+            None => Err(ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()),
+        }
+    }
 }
