@@ -197,11 +197,12 @@ DEFINE TABLE has_comment SCHEMAFULL TYPE RELATION IN blog_post OUT comment;
 DEFINE TABLE has_reply SCHEMAFULL TYPE RELATION IN comment OUT comment;
 
 -- A schema-full reaction table.
-DEFINE TABLE reaction SCHEMAFULL TYPE RELATION IN user_id OUT blog_post | comment;
+DEFINE TABLE OVERWRITE reaction SCHEMAFULL TYPE RELATION IN user_id OUT blog_post | comment;
 -- define some fields.
 DEFINE FIELD type ON TABLE reaction TYPE string
 -- Allow only these values in the array
   ASSERT $value INSIDE ["Like", "Dislike", "Love", "Haha", "Wow", "Sad", "Angry"];
+DEFINE INDEX reactionIndex ON TABLE reaction COLUMNS in,out UNIQUE;
 DEFINE FIELD created_at ON TABLE reaction TYPE datetime
   DEFAULT time::now() READONLY;
 

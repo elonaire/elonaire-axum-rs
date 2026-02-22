@@ -4,6 +4,8 @@ use lib::utils::models::{UploadedFileId, UserId};
 use serde::{Deserialize, Serialize};
 use surrealdb::{sql::Datetime, RecordId};
 
+use crate::graphql::schemas::shared::Reaction;
+
 #[derive(Clone, Debug, Serialize, Deserialize, InputObject)]
 pub struct BlogPostInput {
     pub title: String,
@@ -39,6 +41,8 @@ pub struct BlogPost {
     pub is_premium: Option<bool>,
     pub comments: Option<Vec<BlogComment>>,
     pub read_time: Option<u32>,
+    pub reaction_count: Option<u32>,
+    pub current_user_reaction: Option<Reaction>,
     pub created_at: Option<String>,
     pub updated_at: Option<String>,
 }
@@ -96,11 +100,11 @@ pub enum BlogCategory {
 impl BlogCategory {
     pub fn to_string(&self) -> String {
         match self {
-            BlogCategory::WebDevelopment => "WebDevelopment".to_string(),
-            BlogCategory::MobileDevelopment => "MobileDevelopment".to_string(),
-            BlogCategory::ArtificialIntelligence => "ArtificialIntelligence".to_string(),
-            BlogCategory::Technology => "Technology".to_string(),
-            BlogCategory::Lifestyle => "Lifestyle".to_string(),
+            BlogCategory::WebDevelopment => "Web Development".into(),
+            BlogCategory::MobileDevelopment => "Mobile Development".into(),
+            BlogCategory::ArtificialIntelligence => "Artificial Intelligence".into(),
+            BlogCategory::Technology => "Technology".into(),
+            BlogCategory::Lifestyle => "Lifestyle".into(),
         }
     }
 }

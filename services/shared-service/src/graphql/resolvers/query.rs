@@ -217,17 +217,24 @@ impl Query {
                     .build()
             })?;
 
+        // if the user is authenticated, get the user id
+        let user_id = match confirm_authentication(ctx).await {
+            Ok(user) => user.sub,
+            Err(_e) => String::new(),
+        };
+
         let mut blog_post_db_query = db
             .query(
                 "
                 BEGIN TRANSACTION;
                 LET $blog_id = type::thing('blog_post', $blog_id_or_slug);
-                LET $blog_post = SELECT *, (<-wrote<-user_id)[0].* AS author, (SELECT *, (<-wrote<-user_id)[0][*] AS author, array::len(->has_reply) AS reply_count FROM ->has_comment->comment) AS comments FROM ONLY blog_post WHERE id = $blog_id_or_slug OR link = $blog_id_or_slug LIMIT 1 FETCH content_file;
+                LET $blog_post = (SELECT *, (<-wrote<-user_id)[0][*] AS author, (SELECT *, (<-wrote<-user_id)[0][*] AS author, array::len(->has_reply) AS reply_count FROM ->has_comment->comment) AS comments, array::len(<-reaction) AS reaction_count, (<-(reaction WHERE <-(user_id WHERE user_id = $user_id)))[0][*] AS current_user_reaction FROM ONLY blog_post WHERE id = $blog_id_or_slug OR link = $blog_id_or_slug LIMIT 1 FETCH content_file);
                 RETURN $blog_post;
                 COMMIT TRANSACTION;
                 "
             )
             .bind(("blog_id_or_slug", blog_id_or_slug))
+            .bind(("user_id", user_id))
             .await
             .map_err(|e| {
                 tracing::error!("DB Query error: {}", e);
