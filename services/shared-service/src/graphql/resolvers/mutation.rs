@@ -697,7 +697,7 @@ impl Mutation {
             RELATE $blog_post->has_comment->$blog_comment_id;
             -- Relate the comment to the user
             RELATE $user->wrote->$blog_comment_id;
-            RETURN $blog_comment;
+            RETURN (SELECT *, (<-wrote<-user_id)[0][*] AS author, array::len(->has_reply) AS reply_count, array::len(<-reaction) AS reaction_count, (<-reaction<-(user_id WHERE user_id = $user_id))[0][*] AS current_user_reaction FROM $blog_comment);
             COMMIT TRANSACTION;
             "
         )
@@ -972,12 +972,14 @@ impl Mutation {
         .query(
             "
             BEGIN TRANSACTION;
-            -- Get the user, comment
             LET $user = (SELECT VALUE id FROM ONLY type::table($user_table) WHERE user_id = $user_id LIMIT 1);
             LET $comment = (SELECT VALUE id FROM ONLY type::table($comment_table) WHERE id = type::thing('comment', $comment_id) LIMIT 1);
-
-            -- Relate the reaction to the user
-            LET $reaction = (RELATE $user->reaction->$comment CONTENT $reaction_input RETURN AFTER)[0];
+            LET $existing_reaction = (SELECT VALUE id FROM ONLY reaction WHERE ->(comment WHERE id = $comment) AND <-(user_id WHERE id = $user) LIMIT 1);
+            LET $reaction = IF $existing_reaction != NONE
+           	{ (UPDATE $existing_reaction MERGE $reaction_input)[0] }
+                        ELSE
+           	{ (RELATE $user -> reaction -> $comment CONTENT $reaction_input RETURN AFTER)[0] }
+            ;
 
             RETURN $reaction;
             COMMIT TRANSACTION;

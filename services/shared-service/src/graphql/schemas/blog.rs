@@ -129,6 +129,8 @@ pub struct BlogComment {
     pub author: UserId,
     pub created_at: String,
     pub updated_at: String,
+    pub current_user_reaction: Option<Reaction>,
+    pub reaction_count: Option<u32>,
 }
 
 #[ComplexObject]

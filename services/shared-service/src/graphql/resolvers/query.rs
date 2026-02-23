@@ -254,7 +254,8 @@ impl Query {
                 "
                 BEGIN TRANSACTION;
                 LET $blog_id = type::thing('blog_post', $blog_id_or_slug);
-                LET $blog_post = (SELECT *, (<-wrote<-user_id)[0][*] AS author, (SELECT *, (<-wrote<-user_id)[0][*] AS author, array::len(->has_reply) AS reply_count FROM ->has_comment->comment) AS comments, array::len(<-reaction) AS reaction_count, (<-(reaction WHERE <-(user_id WHERE user_id = $user_id)))[0][*] AS current_user_reaction, array::len(<-bookmark) AS bookmarks_count, array::len(<-share) AS shares_count, array::len(<-(bookmark WHERE <-(user_id WHERE user_id = $user_id))) > 0 AS current_user_bookmarked FROM ONLY blog_post WHERE id = $blog_id_or_slug OR link = $blog_id_or_slug LIMIT 1 FETCH content_file);
+                LET $blog_post = (SELECT *, (<-wrote<-user_id)[0][*] AS author, (SELECT *, (<-wrote<-user_id)[0][*] AS author, array::len(->has_reply) AS reply_count, array::len(<-reaction) AS reaction_count, (<-(reaction WHERE <-(user_id WHERE user_id = $user_id)))[0][*] AS current_user_reaction FROM ->has_comment->comment ORDER BY created_at
+                ) AS comments, array::len(<-reaction) AS reaction_count, (<-(reaction WHERE <-(user_id WHERE user_id = $user_id)))[0][*] AS current_user_reaction, array::len(<-bookmark) AS bookmarks_count, array::len(<-share) AS shares_count, array::len(<-(bookmark WHERE <-(user_id WHERE user_id = $user_id))) > 0 AS current_user_bookmarked FROM ONLY blog_post WHERE id = $blog_id_or_slug OR link = $blog_id_or_slug LIMIT 1 FETCH content_file);
                 RETURN $blog_post;
                 COMMIT TRANSACTION;
                 "
