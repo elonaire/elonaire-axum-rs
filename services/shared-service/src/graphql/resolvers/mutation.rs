@@ -1605,7 +1605,7 @@ impl Mutation {
                 LET $user = type::thing('user_id', $user_id);
                 LET $blog_post = type::thing('blog_post', $blog_post_id);
                 RELATE $user -> share -> $blog_post;
-                LET $total = (SELECT count() AS total FROM share WHERE <-(user_id WHERE id = $user) AND ->(blog_post WHERE id = $blog_post))[0]['total'];
+                LET $total = (SELECT count() AS total FROM share GROUP ALL)[0]['total'];
                 RETURN $total;
                 COMMIT TRANSACTION;
             ",
