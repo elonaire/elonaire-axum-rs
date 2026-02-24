@@ -3,36 +3,31 @@ name = "shared-service"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
-axum = { version = "0.8.6", features = ["multipart"] }
-async-graphql = "7.0.17"
-async-graphql-axum = "7.0.17"
-tokio = { version = "1.47.1", features = ["full"] }
-hyper = "1.7.0"
-tower-http = { version = "0.6.6", features = ["cors"] }
-surrealdb = "2.3.10"
-chrono = "0.4.42"
-serde = "1.0.228"
-dotenvy = "0.15.7"
-async-trait = "0.1.89"
-lib = { path = "../../lib" }
-reqwest = { version = "0.12.23", features = ["json"] }
-# gql_client = "1.0.7"
-markdown = "1.0.0"
-tracing-subscriber = "0.3.20"
-tracing = "0.1.41"
-tracing-appender = "0.2.3"
-tonic = "0.12.3"
-prost = "0.13.5"
-tonic-middleware = "0.2.3"
-uuid = "1.20.0"
-scraper = "0.25.0"
-syntect = "5.3.0"
-
-# [build-dependencies]
-# tonic-build = "0.12.3"
+axum = { workspace = true }
+async-graphql = { workspace = true }
+async-graphql-axum = { workspace = true }
+tokio = { workspace = true }
+hyper = { workspace = true }
+tower-http = { workspace = true }
+surrealdb = { workspace = true }
+chrono = { workspace = true }
+serde = { workspace = true }
+dotenvy = { workspace = true }
+async-trait = { workspace = true }
+lib = { workspace = true }
+reqwest = { workspace = true }
+markdown = { workspace = true }
+tracing-subscriber = { workspace = true }
+tracing = { workspace = true }
+tracing-appender = { workspace = true }
+tonic = { workspace = true }
+prost = { workspace = true }
+tonic-middleware = { workspace = true }
+uuid = { workspace = true }
+scraper = { workspace = true }
+syntect = { workspace = true }
+tower_governor = { workspace = true }
 
 [lints.rust]
 unsafe_code = "forbid"
