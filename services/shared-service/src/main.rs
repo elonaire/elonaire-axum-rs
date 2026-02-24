@@ -5,6 +5,7 @@ mod utils;
 use std::{
     env,
     io::{Error, ErrorKind},
+    net::SocketAddr,
     sync::Arc,
     time::Duration,
 };
@@ -103,6 +104,16 @@ async fn main() -> Result<(), Error> {
         tracing::error!("Config Error: {}", e);
         Error::new(ErrorKind::Other, "SHARED_SERVICE_HTTP_PORT not set")
     })?;
+    let governor_burst_size = env::var("SHARED_RATE_LIMIT_BURST_SIZE")
+        .unwrap_or_else(|_| "20".to_string())
+        .parse::<u32>()
+        .map_err(|e| {
+            tracing::error!("Config Error: {}", e);
+            Error::new(
+                ErrorKind::Other,
+                "SHARED_RATE_LIMIT_BURST_SIZE must be a number",
+            )
+        })?;
 
     // Initialize the schema builder
     let mut schema_builder = Schema::build(Query, Mutation, EmptySubscription);
@@ -124,7 +135,7 @@ async fn main() -> Result<(), Error> {
     // and replenishes one element every two seconds
     let governor_conf = GovernorConfigBuilder::default()
         .per_second(2)
-        .burst_size(5)
+        .burst_size(governor_burst_size)
         .finish()
         .unwrap();
 
@@ -152,12 +163,15 @@ async fn main() -> Result<(), Error> {
 
     match tokio::net::TcpListener::bind(format!("0.0.0.0:{}", shared_service_http_port)).await {
         Ok(http_listener) => {
-            let _http_server = serve(http_listener, app)
-                .await
-                .map_err(|e| {
-                    tracing::error!("Failed to create HTTP server: {}", e);
-                })
-                .ok();
+            let _http_server = serve(
+                http_listener,
+                app.into_make_service_with_connect_info::<SocketAddr>(),
+            )
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to create HTTP server: {}", e);
+            })
+            .ok();
         }
         Err(e) => {
             tracing::error!("Failed to create TCP listener: {}", e);
