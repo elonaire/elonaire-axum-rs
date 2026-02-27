@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 networks:
   app-tier:
@@ -15,7 +15,7 @@ services:
       endpoint_mode: dnsrr
       resources:
         limits:
-          cpus: '0.5'
+          cpus: "0.5"
           memory: 200M
     ports:
       - "80-82:80"
@@ -40,7 +40,7 @@ services:
       endpoint_mode: dnsrr
       resources:
         limits:
-          cpus: '0.5'
+          cpus: "0.5"
           memory: 200M
     ports:
       - "8080-8082:8080"
@@ -103,7 +103,6 @@ services:
       - GITHUB_OAUTH_ACCESS_TOKEN_URL=${GITHUB_OAUTH_ACCESS_TOKEN_URL}
       - OAUTH_REDIRECT_URI=${OAUTH_REDIRECT_URI}
       - DATABASE_NAMESPACE=${DATABASE_NAMESPACE}
-      - DATABASE_NAME_ACL=${DATABASE_NAME_ACL}
       - DATABASE_USER=${DATABASE_USER}
       - DATABASE_PASSWORD=${DATABASE_PASSWORD}
       - DATABASE_HOST_ACL=${DATABASE_HOST_ACL}
@@ -136,8 +135,7 @@ services:
       - DATABASE_SCHEMA_FILE_PATH=${DATABASE_SCHEMA_FILE_PATH}
       - BLOG_POSTS_DIR=${BLOG_POSTS_DIR}
 
-
 # Add any network or volume configurations if needed
 volumes:
-    tt-shared-servicedb:
-    tt-acl-servicedb:
+  tt-shared-servicedb:
+  tt-acl-servicedb:

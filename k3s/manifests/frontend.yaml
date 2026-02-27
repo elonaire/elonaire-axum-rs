@@ -1,0 +1,46 @@
+---
+# Frontend Deployment
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: frontend
+#   labels:
+#     app: frontend
+#   namespace: techietenka
+# spec:
+#   replicas: 1
+#   selector:
+#     matchLabels:
+#       app: frontend
+#   template:
+#     metadata:
+#       labels:
+#         app: frontend
+#     spec:
+#       imagePullSecrets:
+#         - name: registry-auth
+#       containers:
+#         - name: frontend
+#           image: registry.techietenka.com/frontend:latest
+#           securityContext:
+#             runAsUser: 0
+#           imagePullPolicy: Always
+#           ports:
+#             - name: http
+#               containerPort: 8080
+
+---
+# Frontend Service
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: frontend
+#   namespace: techietenka
+# spec:
+#   selector:
+#     app: frontend
+#   ports:
+#     - name: http
+#       port: 8080
+#       targetPort: 8080
+#   type: ClusterIP

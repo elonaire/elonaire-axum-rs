@@ -1,10 +1,13 @@
 mod database;
 mod graphql;
+mod utils;
 
 use std::{
     env,
     io::{Error, ErrorKind},
+    net::SocketAddr,
     sync::Arc,
+    time::Duration,
 };
 
 use async_graphql::{EmptySubscription, Schema};
@@ -16,8 +19,10 @@ use hyper::{
     HeaderMap, Method,
 };
 use surrealdb::{engine::remote::ws::Client, Surreal};
+use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
 use tower_http::cors::CorsLayer;
 use tracing_subscriber::fmt::writer::MakeWriterExt;
+use uuid::Uuid;
 
 type MySchema = Schema<Query, Mutation, EmptySubscription>;
 
@@ -28,6 +33,13 @@ async fn graphql_handler(
     req: GraphQLRequest,
 ) -> GraphQLResponse {
     let mut request = req.0;
+
+    let mut headers = headers.clone();
+    let request_id = Uuid::new_v4();
+    headers.insert(
+        "x-request-id",
+        HeaderValue::from_str(&request_id.to_string()).unwrap_or(HeaderValue::from_static("")),
+    );
     request = request.data(db.clone());
     request = request.data(headers.clone());
 
@@ -45,7 +57,7 @@ async fn graphql_handler(
 
     // Debug the response
     if response.errors.len() > 0 {
-        tracing::debug!("GraphQL Error: {:?}", response.errors);
+        tracing::error!("GraphQL Error: {:?}", response.errors);
     } else {
         tracing::info!("GraphQL request completed without errors");
     }
@@ -56,6 +68,21 @@ async fn graphql_handler(
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
+    // Persist the server logs to a file on a daily basis using "tracing_subscriber"
+    let file_appender = tracing_appender::rolling::daily("./logs", "shared.log");
+    let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
+
+    let stdout = std::io::stdout
+        .with_filter(|meta| {
+            meta.target() != "h2::codec::framed_write" && meta.target() != "h2::codec::framed_read"
+        })
+        .with_max_level(tracing::Level::DEBUG); // Log to console at DEBUG level
+
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::DEBUG)
+        .with_writer(stdout.and(non_blocking))
+        .init();
+
     let connection_pool = database::connection::create_db_connection()
         .await
         .map_err(|e| {
@@ -69,10 +96,24 @@ async fn main() -> Result<(), Error> {
 
     // Import env vars
     let deployment_env = env::var("ENVIRONMENT").unwrap_or_else(|_| "prod".to_string()); // default to production because it's the most secure
-    let allowed_services_cors = env::var("ALLOWED_SERVICES_CORS")
-        .expect("Missing the ALLOWED_SERVICES environment variable.");
-    let shared_service_http_port = env::var("SHARED_SERVICE_HTTP_PORT")
-        .expect("Missing the SHARED_SERVICE_HTTP_PORT environment variable.");
+    let allowed_services_cors = env::var("ALLOWED_SERVICES_CORS").map_err(|e| {
+        tracing::error!("Config Error: {}", e);
+        Error::new(ErrorKind::Other, "ALLOWED_SERVICES_CORS not set")
+    })?;
+    let shared_service_http_port = env::var("SHARED_SERVICE_HTTP_PORT").map_err(|e| {
+        tracing::error!("Config Error: {}", e);
+        Error::new(ErrorKind::Other, "SHARED_SERVICE_HTTP_PORT not set")
+    })?;
+    let governor_burst_size = env::var("SHARED_RATE_LIMIT_BURST_SIZE")
+        .unwrap_or_else(|_| "20".to_string())
+        .parse::<u32>()
+        .map_err(|e| {
+            tracing::error!("Config Error: {}", e);
+            Error::new(
+                ErrorKind::Other,
+                "SHARED_RATE_LIMIT_BURST_SIZE must be a number",
+            )
+        })?;
 
     // Initialize the schema builder
     let mut schema_builder = Schema::build(Query, Mutation, EmptySubscription);
@@ -90,23 +131,26 @@ async fn main() -> Result<(), Error> {
         .filter_map(|endpoint| endpoint.trim().parse::<HeaderValue>().ok())
         .collect();
 
-    // Persist the server logs to a file on a daily basis using "tracing_subscriber"
-    let file_appender = tracing_appender::rolling::daily("./logs", "shared.log");
-    let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
+    // Allow bursts with up to five requests per IP address
+    // and replenishes one element every two seconds
+    let governor_conf = GovernorConfigBuilder::default()
+        .per_second(2)
+        .burst_size(governor_burst_size)
+        .finish()
+        .unwrap();
 
-    let stdout = std::io::stdout
-        .with_filter(|meta| {
-            meta.target() != "h2::codec::framed_write" && meta.target() != "h2::codec::framed_read"
-        })
-        .with_max_level(tracing::Level::DEBUG); // Log to console at DEBUG level
-
-    tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::DEBUG)
-        .with_writer(stdout.and(non_blocking))
-        .init();
+    let governor_limiter = governor_conf.limiter().clone();
+    let interval = Duration::from_secs(60);
+    // a separate background task to clean up
+    std::thread::spawn(move || loop {
+        std::thread::sleep(interval);
+        tracing::info!("rate limiting storage size: {}", governor_limiter.len());
+        governor_limiter.retain_recent();
+    });
 
     let app = Router::new()
         .route("/", post(graphql_handler))
+        .layer(GovernorLayer::new(governor_conf))
         .layer(Extension(schema))
         .layer(Extension(db))
         .layer(
@@ -119,12 +163,15 @@ async fn main() -> Result<(), Error> {
 
     match tokio::net::TcpListener::bind(format!("0.0.0.0:{}", shared_service_http_port)).await {
         Ok(http_listener) => {
-            let _http_server = serve(http_listener, app)
-                .await
-                .map_err(|e| {
-                    tracing::error!("Failed to create HTTP server: {}", e);
-                })
-                .ok();
+            let _http_server = serve(
+                http_listener,
+                app.into_make_service_with_connect_info::<SocketAddr>(),
+            )
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to create HTTP server: {}", e);
+            })
+            .ok();
         }
         Err(e) => {
             tracing::error!("Failed to create TCP listener: {}", e);

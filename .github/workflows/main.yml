@@ -61,6 +61,12 @@ jobs:
 
   build_and_deploy_shared_service:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - linux/amd64
+          # - linux/arm64
     needs: [check_shared_service_changes]
     if: ${{ needs.check_shared_service_changes.outputs.shared_service_should_deploy == 'true' }}
 
@@ -69,7 +75,31 @@ jobs:
       contents: read # required to checkout the code from the repo
 
     steps:
+      - name: Prepare
+        run: |
+          platform=${{ matrix.platform }}
+          echo "PLATFORM_PAIR=${platform//\//-}" >> $GITHUB_ENV
+          echo "SHARED_REGISTRY_IMAGE=registry.techietenka.com/shared-service" >> $GITHUB_ENV
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.SHARED_REGISTRY_IMAGE }}
+
       - uses: actions/checkout@v4
+
+      - name: Log in to Docker Registry
+        uses: docker/login-action@v3
+        with:
+          registry: registry.techietenka.com
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: ${{ matrix.platform }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -78,15 +108,57 @@ jobs:
         #   driver: cloud
         #   endpoint: "elonaire/elonaire-builder"
 
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v1
-        with:
-          username: ${{ secrets.DOCKER_HUB_USERNAME }}
-          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
 
-      - name: Build the Docker image
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          # context: .
+          # push: true
+          tags: ${{ env.SHARED_REGISTRY_IMAGE }}
+          build-args: |
+            SERVICE_NAME=shared-service
+            PORT=3002
+          platforms: ${{ matrix.platform }}
+          provenance: true # enables --provenance=mode=max
+          sbom: true
+          outputs: type=image,push-by-digest=true,name-canonical=true,push=true
+          labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Export digest
         run: |
-          docker buildx build --platform linux/amd64 --build-arg SERVICE_NAME=shared-service --build-arg PORT=3002 -t elonaire/tt-shared-service:latest --provenance=mode=max --sbom=true --push .
+          mkdir -p ${{ runner.temp }}/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "${{ runner.temp }}/digests/${digest#sha256:}"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-shared-${{ env.PLATFORM_PAIR }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          path: ${{ runner.temp }}/digests
+          pattern: digests-shared-*
+          merge-multiple: true
+
+      - name: Docker meta
+        id: meta-tag
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.SHARED_REGISTRY_IMAGE }}
+          tags: |
+            type=raw,value=latest
+
+      - name: Create manifest list and push
+        working-directory: ${{ runner.temp }}/digests
+        run: |
+          docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf '${{ env.SHARED_REGISTRY_IMAGE }}@sha256:%s ' *)
 
   deploy_to_server:
     runs-on: ubuntu-latest
@@ -97,37 +169,39 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      - name: SCP files to server
-        uses: appleboy/scp-action@v0.1.4
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USERNAME }}
-          password: ${{ secrets.SERVER_PASSWORD }}
-          source: "docker-compose.yml,docker-compose.acl.yml,docker-compose.shared.yml"
-          target: ~/
 
-      - name: "Tar files"
-        run: tar -cvf nginx.tar nginx/
-      - name: SCP nginx.conf to server
-        uses: appleboy/scp-action@v0.1.4
+      - name: Setup SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
         with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USERNAME }}
-          password: ${{ secrets.SERVER_PASSWORD }}
-          source: "nginx.tar"
-          target: ~/
+            ssh-private-key: ${{ secrets.VM_SSH_KEY }}
 
-      - name: Deploy to server via SSH
-        uses: appleboy/ssh-action@v0.1.4
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USERNAME }}
-          # key: ${{ secrets.SERVER_SSH_PRIVATE_KEY }}
-          password: ${{ secrets.SERVER_PASSWORD }}
-          script: |
-            tar -xvf nginx.tar
-            echo "${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}" | CI=true docker login -u "${{ secrets.DOCKER_HUB_USERNAME }}" --password-stdin
-            CI=true docker compose --env-file prod.env -f docker-compose.yml --compatibility up -d --force-recreate
+      - name: Add VM to known hosts
+        run: ssh-keyscan -H ${{ secrets.VM_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Copy manifests and configs
+        run: |
+              scp -r k3s ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }}:/home/${{ secrets.VM_USER }}/
+              scp -r mosquitto ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }}:/home/${{ secrets.VM_USER }}/
+
+      - name: Deploy on VM
+        run: |
+              # ssh ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} \
+              # "kubectl apply -f /home/${{ secrets.VM_USER }}/k3s/manifests -R"
+              ssh ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} << EOF
+                    set -e
+
+                    cd /home/${{ secrets.VM_USER }}/k3s
+
+                    # Make .sh scripts executable
+                    chmod +x configs.sh
+
+                    # Run script(s)
+                    ./configs.sh
+
+                    # Apply manifests after scripts (if needed)
+                    kubectl apply -f ./manifests -R
+                  EOF
+
 
   automerge:
     runs-on: ubuntu-latest
