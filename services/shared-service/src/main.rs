@@ -12,11 +12,15 @@ use std::{
 
 use async_graphql::{EmptySubscription, Schema};
 use async_graphql_axum::{GraphQLRequest, GraphQLResponse};
-use axum::{http::HeaderValue, routing::post, serve, Extension, Router};
+use axum::{
+    http::HeaderValue,
+    routing::{get, post},
+    serve, Extension, Router,
+};
 use graphql::resolvers::{mutation::Mutation, query::Query};
 use hyper::{
     header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE},
-    HeaderMap, Method,
+    HeaderMap, Method, StatusCode,
 };
 use surrealdb::{engine::remote::ws::Client, Surreal};
 use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
@@ -150,6 +154,8 @@ async fn main() -> Result<(), Error> {
 
     let app = Router::new()
         .route("/", post(graphql_handler))
+        .route("/healthz", get(|| async { StatusCode::OK }))
+        .route("/ready", get(|| async { StatusCode::OK }))
         .layer(GovernorLayer::new(governor_conf))
         .layer(Extension(schema))
         .layer(Extension(db))
