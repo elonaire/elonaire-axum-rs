@@ -1,352 +1,537 @@
-use std::sync::Arc;
+use std::{env, sync::Arc};
 
-use async_graphql::{Context, Error, Object};
+use async_graphql::{Context, Object};
 use axum::Extension;
-use surrealdb::{engine::remote::ws::Client as SurrealClient, Surreal};
+use hyper::{
+    header::{AUTHORIZATION, COOKIE},
+    HeaderMap, StatusCode,
+};
+use reqwest::Client;
+use surrealdb::{engine::remote::ws::Client as SurrealClient, RecordId, Surreal};
+use tonic::transport::Channel;
 
-use crate::{graphql::schemas::{
-    blog,
-    shared::{self, SurrealRelationQueryResponse},
-    user::{self, ResumeAchievements, UserPortfolioSkills, UserResources, UserResume, UserSkill},
-}, middleware::auth::check_auth_from_acl};
+use crate::{
+    graphql::schemas::{
+        blog::{self, BlogPost, BlogStatus, FetchBlogPostsQueryFilters},
+        shared::{
+            self, BillingInterval, GraphQLApiResponse, Ratecard, ServiceRate, ServiceRequest,
+        },
+        user::{self, PublicSiteResources, UserResources},
+    },
+    utils::{read_time::calculate_read_time_minutes, syntax_highlighter::SyntaxHighlighter},
+};
+
+use lib::{
+    integration::{
+        foreign_key::add_foreign_key_if_not_exists,
+        grpc::clients::files_service::{
+            files_service_client::FilesServiceClient, FetchFileNameRequest,
+        },
+    },
+    middleware::auth::graphql::confirm_authentication,
+    utils::{
+        api_response::synthesize_graphql_response,
+        custom_error::ExtendedError,
+        grpc::{confirm_authorization, create_grpc_client, AuthMetaData},
+        models::{AdminPrivilege, AuthorizationConstraint, ForeignKey, UploadedFileId, UserId},
+        serialization::convert_float_to_string,
+    },
+};
 
 pub struct Query;
 
 #[Object]
 impl Query {
     /// Get all blog posts
-    pub async fn get_blog_posts(
+    pub async fn fetch_blog_posts(
         &self,
         ctx: &Context<'_>,
-    ) -> async_graphql::Result<Vec<blog::BlogPost>> {
+        filters: Option<FetchBlogPostsQueryFilters>,
+    ) -> async_graphql::Result<GraphQLApiResponse<Vec<blog::BlogPost>>> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
-            .unwrap();
+            .map_err(|e| {
+                tracing::error!("Error Surreal Client: {:?}", e);
+                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str())
+                    .build()
+            })?;
 
-        let result = db
-            .select("blog_post")
+        let mut query_result = db
+            .query("
+                <set> array::flatten([
+                   	(SELECT *, (<-wrote<-user_id)[0].* AS author, (SELECT *, (<-wrote<-user_id)[0][*] AS author, array::len(->has_reply) AS reply_count FROM ->has_comment->comment) AS comments FROM blog_post WHERE ($filters.status != NONE AND $filters.is_featured = NONE AND status = $filters.status) OR ($filters.status != NONE AND $filters.is_featured != NONE AND is_featured = $filters.is_featured AND status = $filters.status) OR ($filters.status = NONE AND $filters.is_featured != NONE AND is_featured = $filters.is_featured) FETCH content_file)
+                ]);
+                ")
+            .bind(("filters", filters))
             .await
-            .map_err(|e| Error::new(e.to_string()))?;
+            .map_err(|e| {
+                tracing::error!("DB Query error: {}", e);
+                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
+            })?;
 
-        Ok(result)
-    }
+        let mut result: Vec<blog::BlogPost> = query_result.take(0).map_err(|e| {
+            tracing::error!("blog_posts deserialization error: {}", e);
+            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
+        })?;
 
-    /// Get a single blog post by link(Unique field which is also used as the file name for the markdown content, and the URL slug for the post)
-    pub async fn get_single_blog_post(
-        &self,
-        ctx: &Context<'_>,
-        link: String,
-    ) -> async_graphql::Result<blog::BlogPost> {
-        let db = ctx
-            .data::<Extension<Arc<Surreal<SurrealClient>>>>()
-            .unwrap();
+        let highlighter = SyntaxHighlighter::new();
 
-        let mut result = db
-            .query("SELECT * FROM blog_post WHERE link = $link LIMIT 1")
-            .bind(("link", link))
-            .await
-            .map_err(|e| Error::new(e.to_string()))?;
-
-        let post: Option<blog::BlogPost> = result.take(0)?;
-
-        match post {
-            Some(post) => Ok(post),
-            None => Err(Error::new("Post not found!")),
+        for blog_post in &mut result {
+            if let Some(content) = &blog_post.content {
+                let read_time_minutes = calculate_read_time_minutes(&content);
+                blog_post.read_time = Some(read_time_minutes);
+                let highlighted = highlighter.highlight_html(&content);
+                blog_post.content = Some(highlighted);
+            };
         }
+
+        let api_response = synthesize_graphql_response(ctx, &result, None).ok_or_else(|| {
+            tracing::error!("Failed to synthesize response!");
+            ExtendedError::new("Bad Request", StatusCode::BAD_REQUEST.as_str()).build()
+        })?;
+        Ok(api_response.into())
     }
 
-    /// Get user resources \
-    /// Combines all the resources of a user into a single graphql query
-    pub async fn get_user_resources(
+    /// Get user resources
+    /// Combines all the resources of a logged-in user into a single graphql query
+    pub async fn fetch_user_resources(
         &self,
         ctx: &Context<'_>,
-        user_id: String,
-    ) -> async_graphql::Result<UserResources> {
+    ) -> async_graphql::Result<GraphQLApiResponse<UserResources>> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
-            .unwrap();
+            .map_err(|e| {
+                tracing::error!("Error Surreal Client: {:?}", e);
+                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str())
+                    .build()
+            })?;
 
-        let mut user_query_result = db
-            .query("SELECT * FROM user_id WHERE user_id = $user_id LIMIT 1")
+        let authenticated = confirm_authentication(ctx).await?;
+        let authenticated_ref = &authenticated;
+
+        let mut query_results = db
+            .query("SELECT *, (SELECT *, (<-wrote<-user_id)[0][*] AS author, array::len(->has_reply) AS reply_count FROM ->has_comment->comment) AS comments FROM blog_post WHERE <-wrote<-(user_id WHERE user_id = $external_user_id) FETCH content_file")
+            .bind(("external_user_id", authenticated_ref.sub.to_owned()))
+            .await
+            .map_err(|e| {
+                tracing::error!("DB Query error: {}", e);
+                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
+            })?;
+
+        let blog_posts: Vec<blog::BlogPost> = query_results.take(0).map_err(|e| {
+            tracing::error!("blog_posts deserialization error: {}", e);
+            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
+        })?;
+
+        let user_resources = UserResources { blog_posts };
+
+        let api_response =
+            synthesize_graphql_response(ctx, &user_resources, Some(authenticated_ref)).ok_or_else(
+                || {
+                    tracing::error!("Failed to synthesize response!");
+                    ExtendedError::new("Bad Request", StatusCode::BAD_REQUEST.as_str()).build()
+                },
+            )?;
+        Ok(api_response.into())
+    }
+
+    /// Get site public resources
+    /// Combines all the public resources of this site into a single graphql query
+    pub async fn fetch_site_resources(
+        &self,
+        ctx: &Context<'_>,
+    ) -> async_graphql::Result<GraphQLApiResponse<PublicSiteResources>> {
+        let db = ctx
+            .data::<Extension<Arc<Surreal<SurrealClient>>>>()
+            .map_err(|e| {
+                tracing::error!("Error Surreal Client: {:?}", e);
+                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str())
+                    .build()
+            })?;
+
+        let mut query_results = db
+            .query("SELECT *, (<-wrote<-user_id)[0].* AS author, (SELECT *, (<-wrote<-user_id)[0][*] AS author, array::len(->has_reply) AS reply_count FROM ->has_comment->comment) AS comments FROM blog_post WHERE status = 'Published' FETCH content_file")
+            .query("SELECT * FROM professional_details WHERE active = true")
+            .query("SELECT *, ->uses_skill->skill[*] AS skills FROM portfolio")
+            .query("SELECT *, ->achievement[*] AS achievements FROM resume")
+            .query("SELECT * FROM skill")
+            .query("SELECT * FROM service")
+            .await
+            .map_err(|e| {
+                tracing::error!("DB Query error: {}", e);
+                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
+            })?;
+
+        let blog_posts: Vec<blog::BlogPost> = query_results.take(0).map_err(|e| {
+            tracing::error!("blog_posts deserialization error: {}", e);
+            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
+        })?;
+        let professional_info: Vec<user::UserProfessionalInfo> =
+            query_results.take(1).map_err(|e| {
+                tracing::error!("professional_info deserialization error: {}", e);
+                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str())
+                    .build()
+            })?;
+        let portfolio: Vec<user::UserPortfolio> = query_results.take(2).map_err(|e| {
+            tracing::error!("portfolio deserialization error: {}", e);
+            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
+        })?;
+        let resume: Vec<user::UserResume> = query_results.take(3).map_err(|e| {
+            tracing::error!("resume deserialization error: {}", e);
+            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
+        })?;
+        let skills: Vec<user::UserSkill> = query_results.take(4).map_err(|e| {
+            tracing::error!("skills deserialization error: {}", e);
+            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
+        })?;
+        let services: Vec<user::UserService> = query_results.take(5).map_err(|e| {
+            tracing::error!("services deserialization error: {}", e);
+            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
+        })?;
+
+        let user_resources = PublicSiteResources {
+            blog_posts,
+            professional_info,
+            portfolio,
+            resume,
+            skills,
+            services,
+        };
+
+        let api_response =
+            synthesize_graphql_response(ctx, &user_resources, None).ok_or_else(|| {
+                tracing::error!("Failed to synthesize response!");
+                ExtendedError::new("Bad Request", StatusCode::BAD_REQUEST.as_str()).build()
+            })?;
+        Ok(api_response.into())
+    }
+
+    /// Fetch Blog Content
+    pub async fn fetch_single_blog_post(
+        &self,
+        ctx: &Context<'_>,
+        blog_id_or_slug: String,
+    ) -> async_graphql::Result<GraphQLApiResponse<BlogPost>> {
+        let db = ctx
+            .data::<Extension<Arc<Surreal<SurrealClient>>>>()
+            .map_err(|e| {
+                tracing::error!("Error Surreal Client: {:?}", e);
+                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str())
+                    .build()
+            })?;
+
+        // if the user is authenticated, get the user id
+        let user_id = match confirm_authentication(ctx).await {
+            Ok(auth_status) => {
+                let user_fk = ForeignKey {
+                    table: "user_id".into(),
+                    column: "user_id".into(),
+                    foreign_key: auth_status.sub.clone(),
+                };
+
+                let added_id = add_foreign_key_if_not_exists::<
+                    Extension<Arc<Surreal<SurrealClient>>>,
+                    UserId,
+                >(db, user_fk)
+                .await;
+
+                if added_id.is_none() {
+                    tracing::error!("Failed to add user_id");
+                    return Err(ExtendedError::new(
+                        "Something went wrong",
+                        StatusCode::INTERNAL_SERVER_ERROR.as_str(),
+                    )
+                    .build());
+                }
+
+                auth_status.sub
+            }
+            Err(_e) => String::new(),
+        };
+
+        let mut blog_post_db_query = db
+            .query(
+                "
+                BEGIN TRANSACTION;
+                LET $blog_id = type::thing('blog_post', $blog_id_or_slug);
+                LET $blog_post = (SELECT *, (<-wrote<-user_id)[0][*] AS author, (SELECT *, (<-wrote<-user_id)[0][*] AS author, array::len(->has_reply) AS reply_count, array::len(<-reaction) AS reaction_count, (<-(reaction WHERE <-(user_id WHERE user_id = $user_id)))[0][*] AS current_user_reaction FROM ->has_comment->comment ORDER BY created_at
+                ) AS comments, array::len(<-reaction) AS reaction_count, (<-(reaction WHERE <-(user_id WHERE user_id = $user_id)))[0][*] AS current_user_reaction, array::len(<-bookmark) AS bookmarks_count, array::len(<-share) AS shares_count, array::len(<-(bookmark WHERE <-(user_id WHERE user_id = $user_id))) > 0 AS current_user_bookmarked FROM ONLY blog_post WHERE id = $blog_id_or_slug OR link = $blog_id_or_slug LIMIT 1 FETCH content_file);
+                RETURN $blog_post;
+                COMMIT TRANSACTION;
+                "
+            )
+            .bind(("blog_id_or_slug", blog_id_or_slug))
             .bind(("user_id", user_id))
             .await
-            .map_err(|e| Error::new(e.to_string()))?;
+            .map_err(|e| {
+                tracing::error!("DB Query error: {}", e);
+                ExtendedError::new(
+                    "Server Error",
+                    StatusCode::INTERNAL_SERVER_ERROR.as_str(),
+                )
+                .build()
+            })?;
 
-        let user: Option<user::User> = user_query_result.take(0)?;
+        let blog_post: Option<BlogPost> = blog_post_db_query.take(0)?;
 
-        match user {
-            Some(user) => {
-                let mut query_results = db
-                    .query("SELECT ->has_blog_post.out.* FROM type::thing($user_id)")
-                    .query("SELECT ->has_professional_details.out.* FROM type::thing($user_id)")
-                    .query("SELECT ->has_portfolio.out.* FROM type::thing($user_id)")
-                    .query("SELECT ->has_resume.out.* FROM type::thing($user_id)")
-                    .query("SELECT ->has_skill.out.* FROM type::thing($user_id)")
-                    .query("SELECT ->offers_service.out.* FROM type::thing($user_id)")
-                    .bind((
-                        "user_id",
-                        format!(
-                            "user_id:{}",
-                            user.id.as_ref().map(|t| &t.id).expect("id").to_raw()
-                        ),
-                    ))
-                    .await
-                    .map_err(|e| Error::new(e.to_string()))?;
+        match blog_post {
+            Some(mut blog_post) => {
+                let highlighter = SyntaxHighlighter::new();
 
-                let blog_posts: Option<SurrealRelationQueryResponse<blog::BlogPost>> =
-                    query_results.take(0)?;
-                let professional_info: Option<
-                    SurrealRelationQueryResponse<user::UserProfessionalInfo>,
-                > = query_results.take(1)?;
-                let portfolio: Option<SurrealRelationQueryResponse<user::UserPortfolio>> =
-                    query_results.take(2)?;
-                let resume: Option<SurrealRelationQueryResponse<user::UserResume>> =
-                    query_results.take(3)?;
-                let skills: Option<SurrealRelationQueryResponse<user::UserSkill>> =
-                    query_results.take(4)?;
-                let services: Option<SurrealRelationQueryResponse<user::UserService>> =
-                    query_results.take(5)?;
-                let mut achievements: ResumeAchievements = ResumeAchievements::new();
-                let mut portfolio_skills: UserPortfolioSkills = UserPortfolioSkills::new();
+                if let Some(content) = blog_post.content {
+                    let read_time_minutes = calculate_read_time_minutes(&content);
+                    blog_post.read_time = Some(read_time_minutes);
 
-                let resume_vec = match resume {
-                    Some(resume) => {
-                        let user_resume: Vec<UserResume> = resume
-                            .get("->has_resume")
-                            .unwrap()
-                            .get("out")
-                            .unwrap()
-                            .into_iter()
-                            .map(|resume| resume.to_owned())
-                            .collect();
+                    let highlighted = highlighter.highlight_html(&content);
+                    blog_post.content = Some(highlighted);
+                }
 
-                        for resume in user_resume.clone().into_iter() {
-                            let user_resume = resume.clone();
-                            let mut query_results = db
-                                .query(
-                                    "SELECT ->has_achievement.out.* FROM type::thing($resume_id)",
-                                )
-                                .bind((
-                                    "resume_id",
-                                    format!(
-                                        "resume:{}",
-                                        user_resume
-                                            .id
-                                            .as_ref()
-                                            .map(|t| &t.id)
-                                            .expect("id")
-                                            .to_raw()
-                                    ),
-                                ))
-                                .await
-                                .map_err(|e| Error::new(e.to_string()))?;
-
-                            let resume_achievements: Option<
-                                SurrealRelationQueryResponse<user::ResumeAchievement>,
-                            > = query_results.take(0)?;
-
-                            achievements.insert(
-                                resume.id.as_ref().map(|t| &t.id).expect("id").to_raw(),
-                                resume_achievements
-                                    .unwrap()
-                                    .get("->has_achievement")
-                                    .unwrap()
-                                    .get("out")
-                                    .unwrap()
-                                    .into_iter()
-                                    .map(|achievement| {
-                                        achievement.to_owned().description
-                                    })
-                                    .collect(),
-                            );
-                        }
-
-                        user_resume
-                    }
-                    None => vec![],
-                };
-
-                let portfolio_vec = match portfolio {
-                    Some(portfolio) => {
-                        let user_portfolio: Vec<user::UserPortfolio> = portfolio
-                            .get("->has_portfolio")
-                            .unwrap()
-                            .get("out")
-                            .unwrap()
-                            .into_iter()
-                            .map(|portfolio| portfolio.to_owned())
-                            .collect();
-
-                        for portfolio in user_portfolio.clone().into_iter() {
-                            let user_portfolio = portfolio.clone();
-                            let mut query_results = db
-                                .query(
-                                    "SELECT ->has_skill.out.* FROM type::thing($portfolio_id)",
-                                )
-                                .bind((
-                                    "portfolio_id",
-                                    format!(
-                                        "portfolio:{}",
-                                        user_portfolio
-                                            .id
-                                            .as_ref()
-                                            .map(|t| &t.id)
-                                            .expect("id")
-                                            .to_raw()
-                                    ),
-                                ))
-                                .await
-                                .map_err(|e| Error::new(e.to_string()))?;
-
-                            let portfolio_skills_val: Option<
-                                SurrealRelationQueryResponse<user::UserSkill>,
-                            > = query_results.take(0)?;
-
-                            portfolio_skills.insert(
-                                portfolio.id.as_ref().map(|t| &t.id).expect("id").to_raw(),
-                                portfolio_skills_val
-                                    .unwrap()
-                                    .get("->has_skill")
-                                    .unwrap()
-                                    .get("out")
-                                    .unwrap()
-                                    .into_iter()
-                                    .map(|skill| {
-                                        let mut skill_mut: UserSkill = skill.to_owned();
-                                        skill_mut.id = None;
-                                        skill_mut
-                                    })
-                                    .collect(),
-                            );
-                        }
-
-                        user_portfolio
-                    }
-                    None => vec![],
-                };
-
-                let user_resources = UserResources {
-                    blog_posts: blog_posts
-                        .unwrap()
-                        .get("->has_blog_post")
-                        .unwrap()
-                        .get("out")
-                        .unwrap()
-                        .into_iter()
-                        .map(|blog| blog.to_owned())
-                        .collect(),
-                    professional_info: professional_info
-                        .unwrap()
-                        .get("->has_professional_details")
-                        .unwrap()
-                        .get("out")
-                        .unwrap()
-                        .into_iter()
-                        .map(|info| info.to_owned())
-                        .collect(),
-                    portfolio: portfolio_vec,
-                    resume: resume_vec,
-                    skills: skills
-                        .unwrap()
-                        .get("->has_skill")
-                        .unwrap()
-                        .get("out")
-                        .unwrap()
-                        .into_iter()
-                        .map(|skill| skill.to_owned())
-                        .collect(),
-                    achievements: achievements,
-                    services: services
-                        .unwrap()
-                        .get("->offers_service")
-                        .unwrap()
-                        .get("out")
-                        .unwrap()
-                        .into_iter()
-                        .map(|service| service.to_owned())
-                        .collect(),
-                    portfolio_skills: portfolio_skills,
-                };
-
-                Ok(user_resources)
+                let api_response =
+                    synthesize_graphql_response(ctx, &blog_post, None).ok_or_else(|| {
+                        tracing::error!("Failed to synthesize response!");
+                        ExtendedError::new("Bad Request", StatusCode::BAD_REQUEST.as_str()).build()
+                    })?;
+                Ok(api_response.into())
             }
-            None => Err(Error::new("User not found!")),
+            None => Err(
+                ExtendedError::new("Blog post not found", StatusCode::NOT_FOUND.as_str()).build(),
+            ),
         }
     }
 
-    /// Get resume achievements by user_id and resume_id
-    /// This query is used to get the achievements of a resume
-    pub async fn get_resume_achievements(
+    pub async fn fetch_messages(
         &self,
         ctx: &Context<'_>,
-        resume_id: String,
-    ) -> async_graphql::Result<Vec<user::ResumeAchievement>> {
+    ) -> async_graphql::Result<GraphQLApiResponse<Vec<shared::Message>>> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
-            .unwrap();
+            .map_err(|e| {
+                tracing::error!("Error Surreal Client: {:?}", e);
+                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str())
+                    .build()
+            })?;
 
-        let mut query_results = db
-            .query("SELECT ->has_achievement.out.* FROM type::thing($resume_id)")
-            .bind(("resume_id", format!("resume:{}", resume_id)))
-            .await
-            .map_err(|e| Error::new(e.to_string()))?;
+        let authenticated = confirm_authentication(ctx).await?;
+        let authenticated_ref = &authenticated;
 
-        let achievements: Option<SurrealRelationQueryResponse<user::ResumeAchievement>> =
-            query_results.take(0)?;
+        // fetch all messages in DB
+        let mut query_results = db.query("SELECT * FROM message").await.map_err(|e| {
+            tracing::error!("Query Error: {:?}", e);
+            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
+        })?;
 
-        Ok(achievements
-            .unwrap()
-            .get("->has_achievement")
-            .unwrap()
-            .get("out")
-            .unwrap()
-            .into_iter()
-            .map(|achievement| achievement.to_owned())
-            .collect())
+        let messages: Vec<shared::Message> = query_results.take(0).map_err(|e| {
+            tracing::error!("messages deserialization error: {}", e);
+            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
+        })?;
+
+        let api_response = synthesize_graphql_response(ctx, &messages, Some(authenticated_ref))
+            .ok_or_else(|| {
+                tracing::error!("Failed to synthesize response!");
+                ExtendedError::new("Bad Request", StatusCode::BAD_REQUEST.as_str()).build()
+            })?;
+        Ok(api_response.into())
     }
 
-    pub async fn get_messages(
+    pub async fn fetch_billing_rate(
         &self,
         ctx: &Context<'_>,
-    ) -> async_graphql::Result<Vec<shared::Message>> {
+        billing_interval: BillingInterval,
+        service_ids: Vec<String>,
+    ) -> async_graphql::Result<GraphQLApiResponse<String>> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
-            .unwrap();
+            .map_err(|e| {
+                tracing::error!("Error Surreal Client: {:?}", e);
+                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str())
+                    .build()
+            })?;
 
-            let auth_res_from_acl = check_auth_from_acl(ctx).await?;
+        let service_record_ids = service_ids
+            .iter()
+            .map(|service_id| RecordId::from_table_key("service", service_id))
+            .collect::<Vec<RecordId>>();
 
-            // fetch all messages in DB
-            match auth_res_from_acl {
-                Some(_) => {
-                    let mut query_results = db
-                        .query("SELECT * FROM message")
-                        .await
-                        .map_err(|e| Error::new(e.to_string()))?;
+        // fetch all messages in DB
+        let mut query_results = db
+            .query(
+                r#"
+                BEGIN TRANSACTION;
+                LET $billing_rates = (SELECT service.title AS service_title, service.id AS service_id, base_rate AS hourly_rate, base_rate * hour_week AS weekly_rate, base_rate * hour_week * 4 AS monthly_rate, base_rate * hour_week * 4 * 12 AS annual_rate FROM rate WHERE service.id IN $service_record_ids GROUP BY service_id);
 
-                    let messages: Vec<shared::Message> = query_results
-                        .take(0)?;
+                LET $rates_count = array::len($billing_rates);
+                LET $bundle_discount = IF $rates_count > 1 {
+                    1 - (0.8 * (1 - math::pow(math::e, (-0.4 * $rates_count))))
+                } ELSE {
+                    1
+                };
 
-                    Ok(messages)
-                }
-                None => Err(Error::new("Unauthorized")),
+                RETURN IF $billing_interval = 'Weekly' {
+                    LET $weekly_rates = $billing_rates.map(|$billing_rate| $billing_rate.weekly_rate);
+                    math::sum($weekly_rates)*$bundle_discount
+                } ELSE IF $billing_interval = 'Monthly' {
+                    LET $monthly_rates = $billing_rates.map(|$billing_rate| $billing_rate.monthly_rate);
+                    math::sum($monthly_rates)*$bundle_discount
+                } ELSE IF $billing_interval = 'Annual' {
+                    LET $annual_rates = $billing_rates.map(|$billing_rate| $billing_rate.annual_rate);
+                    math::sum($annual_rates)*$bundle_discount
+                } ELSE {
+                    LET $hourly_rates = $billing_rates.map(|$billing_rate| $billing_rate.hourly_rate);
+                    math::sum($hourly_rates)*$bundle_discount
+                };
+
+                COMMIT TRANSACTION;
+                "#
+            )
+            .bind(("billing_interval", billing_interval))
+            .bind(("service_record_ids", service_record_ids))
+            .await
+            .map_err(|e| {
+                tracing::error!("Query Error: {:?}", e);
+                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
+            })?;
+
+        let response: Option<f64> = query_results.take(0).map_err(|e| {
+            tracing::error!("billing rate deserialization error: {}", e);
+            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
+        })?;
+
+        match response {
+            Some(billing_rate) => {
+                let api_response =
+                    synthesize_graphql_response(ctx, &convert_float_to_string(billing_rate), None)
+                        .ok_or_else(|| {
+                            tracing::error!("Failed to synthesize response!");
+                            ExtendedError::new("Bad Request", StatusCode::BAD_REQUEST.as_str())
+                                .build()
+                        })?;
+                Ok(api_response.into())
             }
+            None => Err(ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()),
+        }
     }
 
-    pub async fn get_skills(
+    pub async fn fetch_ratecards(
         &self,
         ctx: &Context<'_>,
-    ) -> async_graphql::Result<Vec<user::UserSkill>> {
+    ) -> async_graphql::Result<GraphQLApiResponse<Vec<Ratecard>>> {
         let db = ctx
             .data::<Extension<Arc<Surreal<SurrealClient>>>>()
-            .unwrap();
+            .map_err(|e| {
+                tracing::error!("Error Surreal Client: {:?}", e);
+                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str())
+                    .build()
+            })?;
 
+        // fetch all ratecards in DB
         let mut query_results = db
-            .query("SELECT * FROM skill")
+            .query("SELECT *, ->contains->service.* AS services FROM ratecard")
             .await
-            .map_err(|e| Error::new(e.to_string()))?;
+            .map_err(|e| {
+                tracing::error!("Query Error: {:?}", e);
+                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str())
+                    .build()
+            })?;
 
-        let skills: Vec<user::UserSkill> = query_results.take(0)?;
+        let ratecards: Vec<Ratecard> = query_results.take(0).map_err(|e| {
+            tracing::error!("ratecards deserialization error: {}", e);
+            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
+        })?;
 
-        Ok(skills)
+        let api_response = synthesize_graphql_response(ctx, &ratecards, None).ok_or_else(|| {
+            tracing::error!("Failed to synthesize response!");
+            ExtendedError::new("Bad Request", StatusCode::BAD_REQUEST.as_str()).build()
+        })?;
+        Ok(api_response.into())
+    }
+
+    pub async fn fetch_service_rates(
+        &self,
+        ctx: &Context<'_>,
+    ) -> async_graphql::Result<GraphQLApiResponse<Vec<ServiceRate>>> {
+        let db = ctx
+            .data::<Extension<Arc<Surreal<SurrealClient>>>>()
+            .map_err(|e| {
+                tracing::error!("Error Surreal Client: {:?}", e);
+                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str())
+                    .build()
+            })?;
+
+        // fetch all service rates in DB
+        let mut query_results = db
+            .query("SELECT * FROM rate FETCH service, currency_id")
+            .await
+            .map_err(|e| {
+                tracing::error!("Query Error: {:?}", e);
+                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str())
+                    .build()
+            })?;
+
+        let service_rates: Vec<ServiceRate> = query_results.take(0).map_err(|e| {
+            tracing::error!("rate deserialization error: {}", e);
+            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
+        })?;
+
+        let api_response =
+            synthesize_graphql_response(ctx, &service_rates, None).ok_or_else(|| {
+                tracing::error!("Failed to synthesize response!");
+                ExtendedError::new("Bad Request", StatusCode::BAD_REQUEST.as_str()).build()
+            })?;
+        Ok(api_response.into())
+    }
+
+    pub async fn fetch_service_requests(
+        &self,
+        ctx: &Context<'_>,
+    ) -> async_graphql::Result<GraphQLApiResponse<Vec<ServiceRequest>>> {
+        let db = ctx
+            .data::<Extension<Arc<Surreal<SurrealClient>>>>()
+            .map_err(|e| {
+                tracing::error!("Error Surreal Client: {:?}", e);
+                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str())
+                    .build()
+            })?;
+
+        let headers = ctx.data::<HeaderMap>().map_err(|e| {
+            tracing::error!("Error HeaderMap: {:?}", e);
+            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
+        })?;
+
+        let authenticated = confirm_authentication(ctx).await?;
+        let authenticated_ref = &authenticated;
+
+        let authorization_constraint = AuthorizationConstraint {
+            permissions: vec!["read:service_request".into()],
+            privilege: AdminPrivilege::Admin,
+        };
+        let authorized =
+            confirm_authorization(authenticated_ref, &authorization_constraint, headers).await?;
+
+        if !authorized {
+            return Err(ExtendedError::new("Forbidden", StatusCode::FORBIDDEN.as_str()).build());
+        }
+
+        // fetch all service rates in DB
+        let mut query_results = db
+            .query("SELECT * FROM service_request FETCH supporting_docs")
+            .await
+            .map_err(|e| {
+                tracing::error!("Query Error: {:?}", e);
+                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str())
+                    .build()
+            })?;
+
+        let service_requests: Vec<ServiceRequest> = query_results.take(0).map_err(|e| {
+            tracing::error!("rate deserialization error: {}", e);
+            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
+        })?;
+
+        let api_response =
+            synthesize_graphql_response(ctx, &service_requests, Some(authenticated_ref))
+                .ok_or_else(|| {
+                    tracing::error!("Failed to synthesize response!");
+                    ExtendedError::new("Bad Request", StatusCode::BAD_REQUEST.as_str()).build()
+                })?;
+        Ok(api_response.into())
     }
 }

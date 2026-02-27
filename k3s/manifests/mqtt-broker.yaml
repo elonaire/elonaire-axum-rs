@@ -1,0 +1,86 @@
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mqtt-broker-logs-pvc
+  namespace: techietenka
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mqtt-broker-data-pvc
+  namespace: techietenka
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mqtt-broker
+  namespace: techietenka
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mqtt-broker
+  template:
+    metadata:
+      labels:
+        app: mqtt-broker
+    spec:
+      containers:
+        - name: mosquitto
+          image: eclipse-mosquitto:2.1-alpine
+          ports:
+            - containerPort: 1883
+          volumeMounts:
+            - name: mosquitto-config
+              mountPath: /mosquitto/config/
+            - name: mosquitto-pwfile
+              mountPath: /mosquitto/config/pwfile
+              subPath: pwfile
+            - name: mosquitto-log
+              mountPath: /mosquitto/log/
+            - name: mosquitto-data
+              mountPath: /mosquitto/data/
+      volumes:
+        - name: mosquitto-config
+          configMap:
+            name: mosquitto-config
+        - name: mosquitto-pwfile
+          secret:
+            secretName: mosquitto-pwfile
+        - name: mosquitto-log
+          persistentVolumeClaim:
+            claimName: mqtt-broker-logs-pvc
+        - name: mosquitto-data
+          persistentVolumeClaim:
+            claimName: mqtt-broker-data-pvc
+
+---
+# MQTT Headless Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: mqtt-broker
+  namespace: techietenka
+spec:
+  clusterIP: None # 👈 Headless!
+  selector:
+    app: mqtt-broker
+  ports:
+    - name: mqtt-broker
+      port: 1883
+      targetPort: 1883

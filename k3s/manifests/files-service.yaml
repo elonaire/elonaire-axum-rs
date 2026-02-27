@@ -1,0 +1,182 @@
+---
+# PVC for logs storage
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: files-logs-pvc
+  namespace: techietenka
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+
+---
+# PVC for files storage
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: file-uploads-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+
+---
+# DB StatefulSet
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: files-db
+  namespace: techietenka
+spec:
+  serviceName: files-db # You should define a headless service with this name
+  replicas: 1
+  selector:
+    matchLabels:
+      app: files-db
+  template:
+    metadata:
+      labels:
+        app: files-db
+    spec:
+      containers:
+        - name: surrealdb
+          image: surrealdb/surrealdb:v2.2.1
+          securityContext:
+            runAsUser: 0
+          args:
+            [
+              "start",
+              "--log",
+              "debug",
+              "--user",
+              "$(DATABASE_USER)",
+              "--pass",
+              "$(DATABASE_PASSWORD)",
+              "--bind",
+              "0.0.0.0:8000",
+              "surrealkv:/files-db-data/files.db",
+            ]
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - secretRef:
+                name: techietenka-env-vars
+          volumeMounts:
+            - name: files-db-volume
+              mountPath: /files-db-data
+  volumeClaimTemplates:
+    - metadata:
+        name: files-db-volume
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 1Gi
+
+---
+# ACL Service Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: files-service
+  labels:
+    app: files-service
+  namespace: techietenka
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: files-service
+  template:
+    metadata:
+      labels:
+        app: files-service
+    spec:
+      imagePullSecrets:
+        - name: registry-auth
+      containers:
+        - name: files
+          image: registry.techietenka.com/files-service:latest
+          securityContext:
+            runAsUser: 0
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 3001
+            - name: grpc
+              containerPort: 50053
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 3001
+            initialDelaySeconds: 2
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 3001
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3
+          envFrom:
+            - secretRef:
+                name: techietenka-env-vars
+          volumeMounts:
+            - name: logs
+              mountPath: /logs
+            - name: uploads
+              mountPath: /usr/src/uploads
+      volumes:
+        - name: logs
+          persistentVolumeClaim:
+            claimName: files-logs-pvc
+        - name: uploads
+          persistentVolumeClaim:
+            claimName: file-uploads-pvc
+
+---
+# ACL DB Headless Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: files-db
+  namespace: techietenka
+spec:
+  clusterIP: None # 👈 Headless!
+  selector:
+    app: files-db
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+  # type: ClusterIP
+
+---
+# ACL Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: files-service
+  namespace: techietenka
+spec:
+  ipFamilyPolicy: PreferDualStack
+  ipFamilies:
+    - IPv4
+    # - IPv6
+  selector:
+    app: files-service
+  ports:
+    - name: http
+      port: 3001
+      targetPort: 3001
+    - name: grpc
+      port: 50053
+      targetPort: 50053
+  type: ClusterIP

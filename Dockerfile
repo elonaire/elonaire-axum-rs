@@ -1,4 +1,4 @@
-FROM rust:1.83-alpine3.20
+FROM rust:alpine
 
 ARG DEBIAN_FRONTEND=noninteractive
 ARG RUSTFLAGS='-C target-feature=-crt-static'
@@ -12,14 +12,19 @@ ENV SERVICE_NAME=${SERVICE_NAME}
 RUN apk update && apk add --no-cache \
     perl    \
     musl-dev \
+    protobuf-dev \
     openssl-dev
 
-RUN rustup default nightly-2024-08-08
+RUN rustup default stable
 
 WORKDIR /app
 
 # Copy the entire workspace
 COPY . .
+# Create the output directory for grpc
+RUN mkdir lib/src/integration/grpc/out
+# Standardize dir structure for database schemas
+RUN mkdir -p services/${SERVICE_NAME}/src/database/schemas
 
 # Build for release
 RUN cargo build --release --package ${SERVICE_NAME}
@@ -48,6 +53,8 @@ USER myuser
 
 # Copy the binary from the builder stage
 COPY --from=0 /app/target/release/${SERVICE_NAME} .
+# Copy the DB schema
+COPY --from=0 /app/services/${SERVICE_NAME}/src/database/schemas/ /usr/src/db/
 
 # Expose the port
 EXPOSE ${PORT}

@@ -4,3 +4,8 @@
 history.txt
 prod.env
 /services/shared-service/src/posts
+/services/**/logs
+/lib/src/integration/grpc/out
+/mosquitto/config/pwfile
+/mosquitto/data
+/mosquitto/log
