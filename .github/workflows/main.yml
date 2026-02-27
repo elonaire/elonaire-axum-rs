@@ -185,21 +185,19 @@ jobs:
 
       - name: Deploy on VM
         run: |
-              # ssh ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} \
-              # "kubectl apply -f /home/${{ secrets.VM_USER }}/k3s/manifests -R"
               ssh ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} << EOF
                     set -e
 
-                    cd /home/${{ secrets.VM_USER }}/k3s
+                    cd /home/${{ secrets.VM_USER }}
 
                     # Make .sh scripts executable
-                    chmod +x configs.sh
+                    chmod +x k3s/configs.sh
 
                     # Run script(s)
-                    ./configs.sh
+                    ./k3s/configs.sh
 
                     # Apply manifests after scripts (if needed)
-                    kubectl apply -f ./manifests -R
+                    kubectl apply -f ./k3s/manifests -R
                   EOF
 
 
