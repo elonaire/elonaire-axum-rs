@@ -47,7 +47,8 @@ spec:
             - containerPort: 1883
           volumeMounts:
             - name: mosquitto-config
-              mountPath: /mosquitto/config/
+              mountPath: /mosquitto/config/mosquitto.conf
+              subPath: mosquitto.conf
             - name: mosquitto-pwfile
               mountPath: /mosquitto/config/pwfile
               subPath: pwfile
