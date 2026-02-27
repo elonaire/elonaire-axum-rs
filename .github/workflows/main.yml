@@ -185,7 +185,7 @@ jobs:
 
       - name: Deploy on VM
         run: |
-              ssh ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} << 'EOF'
+              ssh ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} <<'EOF'
                     set -e
 
                     cd /home/${{ secrets.VM_USER }}
@@ -198,7 +198,7 @@ jobs:
 
                     # Apply manifests after scripts (if needed)
                     kubectl apply -f ./k3s/manifests -R
-                  EOF
+              EOF
 
 
   automerge:
