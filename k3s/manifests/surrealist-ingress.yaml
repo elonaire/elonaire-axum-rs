@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: surrealist-ingress
+  namespace: techietenka
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    traefik.ingress.kubernetes.io/router.priority: "1"
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: surrealist.techietenka.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: surrealist
+                port:
+                  number: 8080
+  tls:
+    - hosts:
+      - surrealist.techietenka.com
+      secretName: surrealist-tls-secret
