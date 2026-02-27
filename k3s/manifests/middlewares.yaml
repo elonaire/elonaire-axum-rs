@@ -1,9 +1,40 @@
-# apiVersion: traefik.io/v1alpha1
-# kind: Middleware
-# metadata:
-#   name: surrealist-strip
-#   namespace: techietenka
-# spec:
-#   stripPrefix:
-#     prefixes:
-#       - /db/surrealist
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: strip-api-acl
+  namespace: techietenka
+spec:
+  stripPrefix:
+    prefixes:
+      - /api/acl
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: strip-api-files
+  namespace: techietenka
+spec:
+  stripPrefix:
+    prefixes:
+      - /api/files
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: strip-api-email
+  namespace: techietenka
+spec:
+  stripPrefix:
+    prefixes:
+      - /api/email
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: strip-api-shared
+  namespace: techietenka
+spec:
+  stripPrefix:
+    prefixes:
+      - /api/shared

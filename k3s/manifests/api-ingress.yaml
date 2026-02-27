@@ -1,0 +1,104 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: acl-ingress
+  namespace: techietenka
+  annotations:
+    traefik.ingress.kubernetes.io/router.priority: "1"
+    traefik.ingress.kubernetes.io/router.middlewares: techietenka-strip-api-acl@kubernetescrd
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: techietenka.com
+      http:
+        paths:
+          - path: /api/acl
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: acl-service
+                port:
+                  number: 3007
+  tls:
+    - hosts:
+      - techietenka.com
+      secretName: techietenka-main-tls
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: files-ingress
+  namespace: techietenka
+  annotations:
+    traefik.ingress.kubernetes.io/router.priority: "1"
+    traefik.ingress.kubernetes.io/router.middlewares: techietenka-strip-api-files@kubernetescrd
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: techietenka.com
+      http:
+        paths:
+          - path: /api/files
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: files-service
+                port:
+                  number: 3001
+  tls:
+    - hosts:
+      - techietenka.com
+      secretName: techietenka-main-tls
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: email-ingress
+  namespace: techietenka
+  annotations:
+    traefik.ingress.kubernetes.io/router.priority: "1"
+    traefik.ingress.kubernetes.io/router.middlewares: techietenka-strip-api-email@kubernetescrd
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: techietenka.com
+      http:
+        paths:
+          - path: /api/email
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: email-service
+                port:
+                  number: 3019
+  tls:
+    - hosts:
+      - techietenka.com
+      secretName: techietenka-main-tls
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: shared-ingress
+  namespace: techietenka
+  annotations:
+    traefik.ingress.kubernetes.io/router.priority: "1"
+    traefik.ingress.kubernetes.io/router.middlewares: techietenka-strip-api-shared@kubernetescrd
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: techietenka.com
+      http:
+        paths:
+          - path: /api/shared
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: shared-service
+                port:
+                  number: 3002
+  tls:
+    - hosts:
+      - techietenka.com
+      secretName: techietenka-main-tls
