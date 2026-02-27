@@ -6,7 +6,7 @@ metadata:
   namespace: techietenka
 spec:
   accessModes:
-    - ReadWriteMany
+    - ReadWriteOnce
   resources:
     requests:
       storage: 1Gi
@@ -60,7 +60,7 @@ spec:
         name: acl-db-volume
       spec:
         accessModes:
-          - ReadWriteMany
+          - ReadWriteOnce
         resources:
           requests:
             storage: 1Gi
