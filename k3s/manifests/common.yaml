@@ -1,0 +1,67 @@
+---
+# Ingress
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    traefik.ingress.kubernetes.io/router.priority: "1"
+  name: main-site-ingress
+  namespace: techietenka
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: techietenka.com
+      http:
+        paths:
+          - path: /api/acl
+            backend:
+              service:
+                name: acl-service
+                port:
+                  number: 3007
+            pathType: ImplementationSpecific
+
+          - path: /api/files
+            backend:
+              service:
+                name: files-service
+                port:
+                  number: 3001
+            pathType: ImplementationSpecific
+
+          - path: /api/email
+            backend:
+              service:
+                name: email-service
+                port:
+                  number: 3019
+            pathType: ImplementationSpecific
+
+          - path: /api/shared
+            backend:
+              service:
+                name: shared-service
+                port:
+                  number: 3002
+            pathType: ImplementationSpecific
+
+          - path: /db/surrealist
+            backend:
+              service:
+                name: surrealist
+                port:
+                  number: 8081
+            pathType: ImplementationSpecific
+
+          # - path: /
+          #   backend:
+          #     service:
+          #       name: frontend
+          #       port:
+          #         number: 8080
+          #   pathType: ImplementationSpecific
+
+  tls:
+    - hosts:
+      - techietenka.com
+      secretName: techietenka-main-tls

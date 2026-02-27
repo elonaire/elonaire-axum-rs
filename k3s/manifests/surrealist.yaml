@@ -1,0 +1,44 @@
+---
+# Surrealist GUI Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: surrealist
+  labels:
+    app: surrealist
+  namespace: techietenka
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: surrealist
+  template:
+    metadata:
+      labels:
+        app: surrealist
+    spec:
+      containers:
+        - name: surrealist
+          image: surrealdb/surrealist:latest
+          securityContext:
+            runAsUser: 0
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+
+---
+# Surrealist GUI Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: surrealist
+  namespace: techietenka
+spec:
+  selector:
+    app: surrealist
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8081
+  type: ClusterIP
