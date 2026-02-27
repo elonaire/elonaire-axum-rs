@@ -94,20 +94,18 @@ spec:
           imagePullPolicy: Always
           ports:
             - name: http
-              containerPort: 3007
-            - name: grpc
-              containerPort: 50051
+              containerPort: 3002
           readinessProbe:
             httpGet:
               path: /ready
-              port: 3007
+              port: 3002
             initialDelaySeconds: 2
             periodSeconds: 5
             failureThreshold: 3
           livenessProbe:
             httpGet:
               path: /healthz
-              port: 3007
+              port: 3002
             initialDelaySeconds: 5
             periodSeconds: 10
             failureThreshold: 3
@@ -155,9 +153,6 @@ spec:
     app: shared-service
   ports:
     - name: http
-      port: 3007
-      targetPort: 3007
-    - name: grpc
-      port: 50051
-      targetPort: 50051
+      port: 3002
+      targetPort: 3002
   type: ClusterIP
