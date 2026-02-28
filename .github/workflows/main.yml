@@ -190,6 +190,8 @@ jobs:
                     ipAllowList:
                       sourceRange:
                         - ${{ secrets.ALLOWED_IP_MY_MAC }}
+                      ipStrategy:
+                        depth: 1
               EOF
 
               scp -r k3s ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }}:/home/${{ secrets.VM_USER }}/
