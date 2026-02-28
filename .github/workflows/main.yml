@@ -193,7 +193,7 @@ jobs:
                         - ${{ secrets.ALLOWED_IP_MY_MAC_IPV6 }}
                         - ${{ secrets.ALLOWED_IP_K3S }}
                       ipStrategy:
-                        depth: 1
+                        depth: 2
                         ipv6Subnet: 64
               EOF
 
