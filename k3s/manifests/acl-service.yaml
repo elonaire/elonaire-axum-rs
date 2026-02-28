@@ -129,7 +129,7 @@ spec:
             secretName: acl-rsa-keys
 
 ---
-# ACL DB Headless Service
+# ACL DB Headless Service(Internal)
 apiVersion: v1
 kind: Service
 metadata:
@@ -146,7 +146,23 @@ spec:
   # type: ClusterIP
 
 ---
-# ACL Service
+# ACL DB External Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: acl-db-external
+  namespace: techietenka
+spec:
+  type: ClusterIP
+  selector:
+    app: acl-db
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+
+---
+# ACL Service External
 apiVersion: v1
 kind: Service
 metadata:
@@ -167,3 +183,23 @@ spec:
       port: 50051
       targetPort: 50051
   type: ClusterIP
+
+---
+# ACL Headless Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: acl-service-internal
+  namespace: techietenka
+spec:
+  clusterIP: None # 👈 Headless!
+  selector:
+    app: acl-service
+  ports:
+    - name: http
+      port: 3007
+      targetPort: 3007
+    - name: grpc
+      port: 50051
+      targetPort: 50051
+  # type: ClusterIP

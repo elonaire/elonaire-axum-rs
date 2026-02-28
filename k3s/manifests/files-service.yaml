@@ -80,7 +80,7 @@ spec:
             storage: 1Gi
 
 ---
-# ACL Service Deployment
+# Files Service Deployment
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -142,7 +142,22 @@ spec:
             claimName: file-uploads-pvc
 
 ---
-# ACL DB Headless Service
+# Files DB External Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: files-db-external
+  namespace: techietenka
+spec:
+  type: ClusterIP
+  selector:
+    app: files-db
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+---
+# Files DB Headless Service
 apiVersion: v1
 kind: Service
 metadata:
@@ -159,7 +174,7 @@ spec:
   # type: ClusterIP
 
 ---
-# ACL Service
+# Files Service External
 apiVersion: v1
 kind: Service
 metadata:
@@ -180,3 +195,23 @@ spec:
       port: 50053
       targetPort: 50053
   type: ClusterIP
+
+---
+# Files Headless Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: files-service-internal
+  namespace: techietenka
+spec:
+  clusterIP: None # 👈 Headless!
+  selector:
+    app: files-service
+  ports:
+    - name: http
+      port: 3001
+      targetPort: 3001
+    - name: grpc
+      port: 50053
+      targetPort: 50053
+  # type: ClusterIP
