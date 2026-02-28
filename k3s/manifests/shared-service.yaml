@@ -66,7 +66,7 @@ spec:
             storage: 1Gi
 
 ---
-# ACL Service Deployment
+# Shared Service Deployment
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -121,7 +121,22 @@ spec:
             claimName: shared-logs-pvc
 
 ---
-# ACL DB Headless Service
+# Shared DB External Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: shared-db-external
+  namespace: techietenka
+spec:
+  type: ClusterIP
+  selector:
+    app: shared-db
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+---
+# Shared DB Headless Service
 apiVersion: v1
 kind: Service
 metadata:
@@ -138,7 +153,7 @@ spec:
   # type: ClusterIP
 
 ---
-# ACL Service
+# Shared Service
 apiVersion: v1
 kind: Service
 metadata:

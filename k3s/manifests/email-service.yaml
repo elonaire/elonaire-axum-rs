@@ -69,17 +69,37 @@ spec:
             claimName: email-logs-pvc
 
 ---
-# ACL Service
+# Email External Service
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: email-service
+#   namespace: techietenka
+# spec:
+#   ipFamilyPolicy: PreferDualStack
+#   ipFamilies:
+#     - IPv4
+#     # - IPv6
+#   selector:
+#     app: email-service
+#   ports:
+#     - name: http
+#       port: 3019
+#       targetPort: 3019
+#     - name: grpc
+#       port: 50052
+#       targetPort: 50052
+#   type: ClusterIP
+
+---
+# Email Headless Service
 apiVersion: v1
 kind: Service
 metadata:
-  name: email-service
+  name: email-service-internal
   namespace: techietenka
 spec:
-  ipFamilyPolicy: PreferDualStack
-  ipFamilies:
-    - IPv4
-    # - IPv6
+  clusterIP: None # 👈 Headless!
   selector:
     app: email-service
   ports:
@@ -89,4 +109,4 @@ spec:
     - name: grpc
       port: 50052
       targetPort: 50052
-  type: ClusterIP
+  # type: ClusterIP
