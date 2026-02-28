@@ -190,6 +190,7 @@ jobs:
                     ipAllowList:
                       sourceRange:
                         - ${{ secrets.ALLOWED_IP_MY_MAC }}
+                        - ${{ secrets.ALLOWED_IP_MY_MAC_IPV6 }}
                       ipStrategy:
                         depth: 1
               EOF
