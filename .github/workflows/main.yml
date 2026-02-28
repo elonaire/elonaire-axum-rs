@@ -180,6 +180,18 @@ jobs:
 
       - name: Copy manifests and configs
         run: |
+              cat > k3s/manifests/ipallowlist.yaml <<'EOF'
+                  apiVersion: traefik.io/v1alpha1
+                  kind: Middleware
+                  metadata:
+                    name: surrealist-ipallowlist
+                    namespace: techietenka
+                  spec:
+                    ipAllowList:
+                      sourceRange:
+                        - ${{ secrets.ALLOWED_IP_MY_MAC }}
+              EOF
+
               scp -r k3s ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }}:/home/${{ secrets.VM_USER }}/
               scp -r mosquitto ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }}:/home/${{ secrets.VM_USER }}/
 
