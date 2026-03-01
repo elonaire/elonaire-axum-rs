@@ -191,9 +191,9 @@ jobs:
                       sourceRange:
                         - ${{ secrets.ALLOWED_IP_MY_MAC }}
                         - ${{ secrets.ALLOWED_IP_MY_MAC_IPV6 }}
-                      ipStrategy:
-                        depth: 1
-                        ipv6Subnet: 64
+                      # ipStrategy:
+                      #   depth: 1
+                      #   ipv6Subnet: 64
               EOF
 
               scp -r k3s ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }}:/home/${{ secrets.VM_USER }}/
