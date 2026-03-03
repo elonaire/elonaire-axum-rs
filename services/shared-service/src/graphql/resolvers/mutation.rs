@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use async_graphql::{Context, Error, Object};
 use axum::Extension;
+use html2text::from_read;
 // use gql_client::Client as GQLClient;
 
 use hyper::{HeaderMap, StatusCode};
@@ -594,6 +595,17 @@ impl Mutation {
         })?;
 
         blog_post.content_file = Some(RecordId::from(added_file.id));
+        let content_stripped_tags =
+            (from_read(blog_post.content.as_bytes(), usize::MAX).map_err(|e| {
+                tracing::error!("Failed to extract text from HTML: {e:?}");
+                ExtendedError::new(
+                    "Something went wrong",
+                    StatusCode::INTERNAL_SERVER_ERROR.as_str(),
+                )
+                .build()
+            })?)
+            .replace('\n', " ");
+        blog_post.content_text_only = Some(content_stripped_tags);
 
         let mut database_transaction = db
             .query(

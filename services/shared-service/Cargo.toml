@@ -28,6 +28,7 @@ uuid = { workspace = true }
 scraper = { workspace = true }
 syntect = { workspace = true }
 tower_governor = { workspace = true }
+html2text = { workspace = true }
 
 [lints.rust]
 unsafe_code = "forbid"
