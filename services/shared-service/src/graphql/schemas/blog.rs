@@ -113,8 +113,8 @@ pub enum BlogCategory {
     UpCloseAndCandid,
     #[graphql(name = "Commentary")]
     Commentary,
-    #[graphql(name = "Security")]
-    Security,
+    #[graphql(name = "CyberSecurity")]
+    CyberSecurity,
     #[graphql(name = "Programming")]
     Programming,
 }

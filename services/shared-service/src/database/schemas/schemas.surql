@@ -164,7 +164,7 @@ DEFINE FIELD content_text_only ON TABLE blog_post TYPE option<string>
 DEFINE FIELD content ON TABLE blog_post TYPE string;
 DEFINE FIELD OVERWRITE category ON TABLE blog_post TYPE string
 -- Allow only these values in the array
-  ASSERT $value INSIDE ["WebDevelopment", "MobileDevelopment", "ArtificialIntelligence", "Technology", "Lifestyle", "Science", "Health", "EmbeddedSystems", "IoT", "UpCloseAndCandid", "Commentary", "Security", "Programming"];
+  ASSERT $value INSIDE ["WebDevelopment", "MobileDevelopment", "ArtificialIntelligence", "Technology", "Lifestyle", "Science", "Health", "EmbeddedSystems", "IoT", "UpCloseAndCandid", "Commentary", "CyberSecurity", "Programming"];
 DEFINE FIELD link ON TABLE blog_post VALUE string::slug(title);
 DEFINE INDEX blogPostIndex ON TABLE blog_post COLUMNS link UNIQUE;
 DEFINE FIELD status ON TABLE blog_post TYPE option<string>
