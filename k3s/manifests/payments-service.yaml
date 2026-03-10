@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: email-logs-pvc
+  name: payments-logs-pvc
   namespace: techietenka
 spec:
   accessModes:
@@ -12,23 +12,22 @@ spec:
       storage: 1Gi
 
 ---
-
 # DB StatefulSet
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: email-db
+  name: payments-db
   namespace: techietenka
 spec:
-  serviceName: email-db # You should define a headless service with this name
+  serviceName: payments-db # You should define a headless service with this name
   replicas: 1
   selector:
     matchLabels:
-      app: email-db
+      app: payments-db
   template:
     metadata:
       labels:
-        app: email-db
+        app: payments-db
     spec:
       containers:
         - name: surrealdb
@@ -46,7 +45,7 @@ spec:
               "$(DATABASE_PASSWORD)",
               "--bind",
               "0.0.0.0:8000",
-              "surrealkv:/email-db-data/acl.db",
+              "surrealkv:/payments-db-data/payments.db",
             ]
           ports:
             - containerPort: 8000
@@ -54,11 +53,11 @@ spec:
             - secretRef:
                 name: techietenka-env-vars
           volumeMounts:
-            - name: email-db-volume
-              mountPath: /email-db-data
+            - name: payments-db-volume
+              mountPath: /payments-db-data
   volumeClaimTemplates:
     - metadata:
-        name: email-db-volume
+        name: payments-db-volume
       spec:
         accessModes:
           - ReadWriteOnce
@@ -67,48 +66,48 @@ spec:
             storage: 1Gi
 
 ---
-# Email Service Deployment
+# Payments Service Deployment
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: email-service
+  name: payments-service
   labels:
-    app: email-service
+    app: payments-service
   namespace: techietenka
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: email-service
+      app: payments-service
   template:
     metadata:
       labels:
-        app: email-service
+        app: payments-service
     spec:
       imagePullSecrets:
         - name: registry-auth
       containers:
-        - name: email
-          image: registry.techietenka.com/email-service:latest
+        - name: payments
+          image: registry.techietenka.com/payments-service:latest
           securityContext:
             runAsUser: 0
           imagePullPolicy: Always
           ports:
             - name: http
-              containerPort: 3019
+              containerPort: 3013
             - name: grpc
-              containerPort: 50052
+              containerPort: 50056
           readinessProbe:
             httpGet:
               path: /ready
-              port: 3019
+              port: 3013
             initialDelaySeconds: 2
             periodSeconds: 5
             failureThreshold: 3
           livenessProbe:
             httpGet:
               path: /healthz
-              port: 3019
+              port: 3013
             initialDelaySeconds: 5
             periodSeconds: 10
             failureThreshold: 3
@@ -121,41 +120,19 @@ spec:
       volumes:
         - name: logs
           persistentVolumeClaim:
-            claimName: email-logs-pvc
+            claimName: payments-logs-pvc
 
 ---
-# Email External Service
+# Payments DB Headless Service(Internal)
 apiVersion: v1
 kind: Service
 metadata:
-  name: email-service
-  namespace: techietenka
-spec:
-  ipFamilyPolicy: PreferDualStack
-  ipFamilies:
-    - IPv4
-    # - IPv6
-  selector:
-    app: email-service
-  ports:
-    - name: http
-      port: 3019
-      targetPort: 3019
-    - name: grpc
-      port: 50052
-      targetPort: 50052
-  type: ClusterIP
----
-# Email DB Headless Service(Internal)
-apiVersion: v1
-kind: Service
-metadata:
-  name: email-db
+  name: payments-db
   namespace: techietenka
 spec:
   clusterIP: None # 👈 Headless!
   selector:
-    app: email-db
+    app: payments-db
   ports:
     - name: http
       port: 8000
@@ -163,36 +140,60 @@ spec:
   # type: ClusterIP
 
 ---
-# Email DB External Service
+# Payments DB External Service
 apiVersion: v1
 kind: Service
 metadata:
-  name: email-db-external
+  name: payments-db-external
   namespace: techietenka
 spec:
   type: ClusterIP
   selector:
-    app: email-db
+    app: payments-db
   ports:
     - name: http
       port: 8000
       targetPort: 8000
+
 ---
-# Email Headless Service
+# Payments Service External
 apiVersion: v1
 kind: Service
 metadata:
-  name: email-service-internal
+  name: payments-service
+  namespace: techietenka
+spec:
+  ipFamilyPolicy: PreferDualStack
+  ipFamilies:
+    - IPv4
+    # - IPv6
+  selector:
+    app: payments-service
+  ports:
+    - name: http
+      port: 3013
+      targetPort: 3013
+    # - name: grpc
+    #   port: 50056
+    #   targetPort: 50056
+  type: ClusterIP
+
+---
+# Payments Headless Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: payments-service-internal
   namespace: techietenka
 spec:
   clusterIP: None # 👈 Headless!
   selector:
-    app: email-service
+    app: payments-service
   ports:
     - name: http
-      port: 3019
-      targetPort: 3019
+      port: 3013
+      targetPort: 3013
     - name: grpc
-      port: 50052
-      targetPort: 50052
+      port: 50056
+      targetPort: 50056
   # type: ClusterIP
