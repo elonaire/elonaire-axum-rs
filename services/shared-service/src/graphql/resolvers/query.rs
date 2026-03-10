@@ -1,18 +1,14 @@
-use std::{env, sync::Arc};
+use std::sync::Arc;
 
 use async_graphql::{Context, Object};
 use axum::Extension;
-use hyper::{
-    header::{AUTHORIZATION, COOKIE},
-    HeaderMap, StatusCode,
-};
-use reqwest::Client;
+use hyper::{HeaderMap, StatusCode};
+
 use surrealdb::{engine::remote::ws::Client as SurrealClient, RecordId, Surreal};
-use tonic::transport::Channel;
 
 use crate::{
     graphql::schemas::{
-        blog::{self, BlogPost, BlogStatus, FetchBlogPostsQueryFilters},
+        blog::{self, BlogPost, FetchBlogPostsQueryFilters},
         shared::{
             self, BillingInterval, GraphQLApiResponse, Ratecard, ServiceRate, ServiceRequest,
         },
@@ -22,18 +18,13 @@ use crate::{
 };
 
 use lib::{
-    integration::{
-        foreign_key::add_foreign_key_if_not_exists,
-        grpc::clients::files_service::{
-            files_service_client::FilesServiceClient, FetchFileNameRequest,
-        },
-    },
+    integration::foreign_key::add_foreign_key_if_not_exists,
     middleware::auth::graphql::confirm_authentication,
     utils::{
         api_response::synthesize_graphql_response,
         custom_error::ExtendedError,
-        grpc::{confirm_authorization, create_grpc_client, AuthMetaData},
-        models::{AdminPrivilege, AuthorizationConstraint, ForeignKey, UploadedFileId, UserId},
+        grpc::confirm_authorization,
+        models::{AdminPrivilege, AuthorizationConstraint, ForeignKey, UserId},
         serialization::convert_float_to_string,
     },
 };
@@ -59,7 +50,9 @@ impl Query {
         let mut query_result = db
             .query("
                 <set> array::flatten([
-                   	(SELECT *, (<-wrote<-user_id)[0].* AS author, (SELECT *, (<-wrote<-user_id)[0][*] AS author, array::len(->has_reply) AS reply_count FROM ->has_comment->comment) AS comments FROM blog_post WHERE ($filters.status != NONE AND $filters.is_featured = NONE AND status = $filters.status) OR ($filters.status != NONE AND $filters.is_featured != NONE AND is_featured = $filters.is_featured AND status = $filters.status) OR ($filters.status = NONE AND $filters.is_featured != NONE AND is_featured = $filters.is_featured) FETCH content_file)
+                   	(SELECT *, (<-wrote<-user_id)[0][*] AS author, (SELECT *, (<-wrote<-user_id)[0][*] AS author, array::len(->has_reply) AS reply_count FROM ->has_comment->comment) AS comments FROM blog_post WHERE ($filters.status != NONE AND $filters.is_featured = NONE AND status = $filters.status) OR ($filters.status != NONE AND $filters.is_featured != NONE AND is_featured = $filters.is_featured AND status = $filters.status) OR ($filters.status = NONE AND $filters.is_featured != NONE AND is_featured = $filters.is_featured) FETCH content_file),
+                   	(SELECT * OMIT relevance FROM (SELECT *, (<-wrote<-user_id)[0][*] AS author, (SELECT *, (<-wrote<-user_id)[0][*] AS author, array::len(->has_reply) AS reply_count FROM ->has_comment->comment) AS comments, search::score(0) + search::score(1) AS relevance FROM blog_post WHERE title @0@ $filters.search_term OR content_text_only @1@ $filters.search_term ORDER BY relevance DESC
+                    FETCH content_file))
                 ]);
                 ")
             .bind(("filters", filters))

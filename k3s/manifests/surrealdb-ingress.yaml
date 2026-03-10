@@ -35,7 +35,7 @@ metadata:
   annotations:
     cert-manager.io/cluster-issuer: "letsencrypt-prod"
     traefik.ingress.kubernetes.io/router.priority: "1"
-    traefik.ingress.kubernetes.io/router.middlewares: "techietenka-surrealist-ipallowlist@kubernetescrd,techietenka-strip-acl@kubernetescrd,techietenka-strip-files@kubernetescrd,techietenka-strip-shared@kubernetescrd"
+    traefik.ingress.kubernetes.io/router.middlewares: "techietenka-surrealist-ipallowlist@kubernetescrd,techietenka-strip-acl@kubernetescrd,techietenka-strip-files@kubernetescrd,techietenka-strip-shared@kubernetescrd,techietenka-strip-email@kubernetescrd"
 spec:
   ingressClassName: traefik
   rules:
@@ -63,6 +63,14 @@ spec:
             backend:
               service:
                 name: shared-db-external
+                port:
+                  number: 8000
+
+          - path: /email
+            pathType: Prefix
+            backend:
+              service:
+                name: email-db-external
                 port:
                   number: 8000
   tls:
