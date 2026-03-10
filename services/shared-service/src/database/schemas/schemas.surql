@@ -1,3 +1,7 @@
+-- Analyzer
+-- DEFINE ANALYZER blog_content_analyzer TOKENIZERS blank,class,camel,punct FILTERS edgengram(2, 10), lowercase;
+DEFINE ANALYZER blog_post_search_analyzer TOKENIZERS blank, camel, punct FILTERS lowercase;
+
 -- A schema-full user_id table
 DEFINE TABLE user_id SCHEMAFULL;
 -- define some fields
@@ -155,10 +159,12 @@ DEFINE FIELD short_description ON TABLE blog_post TYPE string;
 DEFINE FIELD thumbnail ON TABLE blog_post TYPE string
   ASSERT string::is::url($value);
 DEFINE FIELD OVERWRITE content_file ON TABLE blog_post TYPE record<file_id>;
+DEFINE FIELD content_text_only ON TABLE blog_post TYPE option<string>
+    DEFAULT NONE;
 DEFINE FIELD content ON TABLE blog_post TYPE string;
-DEFINE FIELD category ON TABLE blog_post TYPE string
+DEFINE FIELD OVERWRITE category ON TABLE blog_post TYPE string
 -- Allow only these values in the array
-  ASSERT $value INSIDE ["WebDevelopment", "MobileDevelopment", "ArtificialIntelligence", "Technology", "Lifestyle"];
+  ASSERT $value INSIDE ["WebDevelopment", "MobileDevelopment", "ArtificialIntelligence", "Technology", "Lifestyle", "Science", "Health", "EmbeddedSystems", "IoT", "UpCloseAndCandid", "Commentary", "CyberSecurity", "Programming"];
 DEFINE FIELD link ON TABLE blog_post VALUE string::slug(title);
 DEFINE INDEX blogPostIndex ON TABLE blog_post COLUMNS link UNIQUE;
 DEFINE FIELD status ON TABLE blog_post TYPE option<string>
@@ -171,6 +177,9 @@ DEFINE FIELD is_featured ON TABLE blog_post TYPE bool
   DEFAULT false;
 DEFINE FIELD is_premium ON TABLE blog_post TYPE bool
   DEFAULT false;
+--Full-text search
+DEFINE INDEX OVERWRITE blogContentSearchIndex ON TABLE blog_post FIELDS content_text_only SEARCH ANALYZER blog_post_search_analyzer BM25(1.2,0.75) HIGHLIGHTS;
+DEFINE INDEX blogTitleSearchIndex ON TABLE blog_post FIELDS title SEARCH ANALYZER blog_post_search_analyzer BM25(1.2,0.75) HIGHLIGHTS;
 DEFINE FIELD created_at ON TABLE blog_post TYPE datetime
   DEFAULT time::now() READONLY;
 DEFINE FIELD updated_at ON TABLE blog_post TYPE datetime

@@ -2,7 +2,7 @@ use async_graphql::{ComplexObject, Enum, InputObject, SimpleObject};
 
 use lib::utils::models::{UploadedFileId, UserId};
 use serde::{Deserialize, Serialize};
-use surrealdb::{sql::Datetime, RecordId};
+use surrealdb::RecordId;
 
 use crate::graphql::schemas::shared::Reaction;
 
@@ -15,6 +15,8 @@ pub struct BlogPostInput {
     pub content: String,
     #[graphql(skip)]
     pub content_file: Option<RecordId>,
+    #[graphql(skip)]
+    pub content_text_only: Option<String>,
     pub category: BlogCategory,
     pub is_featured: Option<bool>,
     pub is_premium: Option<bool>,
@@ -31,6 +33,7 @@ pub struct BlogPost {
     pub thumbnail: String,
     #[graphql(skip)]
     pub content_file: UploadedFileId,
+    pub content_text_only: Option<String>,
     #[graphql(skip)]
     pub author: UserId,
     pub content: Option<String>,
@@ -98,18 +101,22 @@ pub enum BlogCategory {
     Technology,
     #[graphql(name = "Lifestyle")]
     Lifestyle,
-}
-
-impl BlogCategory {
-    pub fn to_string(&self) -> String {
-        match self {
-            BlogCategory::WebDevelopment => "Web Development".into(),
-            BlogCategory::MobileDevelopment => "Mobile Development".into(),
-            BlogCategory::ArtificialIntelligence => "Artificial Intelligence".into(),
-            BlogCategory::Technology => "Technology".into(),
-            BlogCategory::Lifestyle => "Lifestyle".into(),
-        }
-    }
+    #[graphql(name = "Science")]
+    Science,
+    #[graphql(name = "Health")]
+    Health,
+    #[graphql(name = "EmbeddedSystems")]
+    EmbeddedSystems,
+    #[graphql(name = "IoT")]
+    IoT,
+    #[graphql(name = "UpCloseAndCandid")]
+    UpCloseAndCandid,
+    #[graphql(name = "Commentary")]
+    Commentary,
+    #[graphql(name = "CyberSecurity")]
+    CyberSecurity,
+    #[graphql(name = "Programming")]
+    Programming,
 }
 
 // BlogComment
@@ -165,6 +172,7 @@ pub struct FetchBlogPostsQueryFilters {
     pub is_featured: Option<bool>,
     // pub is_premium: Option<bool>,
     pub sort_configs: Option<SortConfigs>,
+    pub search_term: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Enum, Copy, Eq, PartialEq)]
