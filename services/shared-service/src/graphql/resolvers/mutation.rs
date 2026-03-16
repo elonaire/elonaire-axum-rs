@@ -51,7 +51,10 @@ impl Mutation {
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
-        let authenticated = confirm_authentication(ctx).await?;
+        let authenticated = confirm_authentication(ctx).await.map_err(|e| {
+            tracing::error!("Authentication error: {:?}", e);
+            ExtendedError::new("Unauthorized", StatusCode::UNAUTHORIZED.as_str()).build()
+        })?;
         let authenticated_ref = &authenticated;
 
         let authorization_constraint = AuthorizationConstraint {
@@ -138,7 +141,10 @@ impl Mutation {
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
-        let authenticated = confirm_authentication(ctx).await?;
+        let authenticated = confirm_authentication(ctx).await.map_err(|e| {
+            tracing::error!("Authentication error: {:?}", e);
+            ExtendedError::new("Unauthorized", StatusCode::UNAUTHORIZED.as_str()).build()
+        })?;
         let authenticated_ref = &authenticated;
 
         let authorization_constraint = AuthorizationConstraint {
@@ -226,7 +232,10 @@ impl Mutation {
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
-        let authenticated = confirm_authentication(ctx).await?;
+        let authenticated = confirm_authentication(ctx).await.map_err(|e| {
+            tracing::error!("Authentication error: {:?}", e);
+            ExtendedError::new("Unauthorized", StatusCode::UNAUTHORIZED.as_str()).build()
+        })?;
         let authenticated_ref = &authenticated;
 
         let authorization_constraint = AuthorizationConstraint {
@@ -329,7 +338,10 @@ impl Mutation {
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
-        let authenticated = confirm_authentication(ctx).await?;
+        let authenticated = confirm_authentication(ctx).await.map_err(|e| {
+            tracing::error!("Authentication error: {:?}", e);
+            ExtendedError::new("Unauthorized", StatusCode::UNAUTHORIZED.as_str()).build()
+        })?;
         let authenticated_ref = &authenticated;
 
         let authorization_constraint = AuthorizationConstraint {
@@ -433,7 +445,10 @@ impl Mutation {
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
-        let authenticated = confirm_authentication(ctx).await?;
+        let authenticated = confirm_authentication(ctx).await.map_err(|e| {
+            tracing::error!("Authentication error: {:?}", e);
+            ExtendedError::new("Unauthorized", StatusCode::UNAUTHORIZED.as_str()).build()
+        })?;
         let authenticated_ref = &authenticated;
 
         let authorization_constraint = AuthorizationConstraint {
@@ -522,7 +537,10 @@ impl Mutation {
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
-        let authenticated = confirm_authentication(ctx).await?;
+        let authenticated = confirm_authentication(ctx).await.map_err(|e| {
+            tracing::error!("Authentication error: {:?}", e);
+            ExtendedError::new("Unauthorized", StatusCode::UNAUTHORIZED.as_str()).build()
+        })?;
         let authenticated_ref = &authenticated;
 
         let authorization_constraint = AuthorizationConstraint {
@@ -669,7 +687,10 @@ impl Mutation {
                     .build()
             })?;
 
-        let authenticated = confirm_authentication(ctx).await?;
+        let authenticated = confirm_authentication(ctx).await.map_err(|e| {
+            tracing::error!("Authentication error: {:?}", e);
+            ExtendedError::new("Unauthorized", StatusCode::UNAUTHORIZED.as_str()).build()
+        })?;
         let authenticated_ref = &authenticated;
 
         let user_fk = ForeignKey {
@@ -765,7 +786,10 @@ impl Mutation {
                     .build()
             })?;
 
-        let authenticated = confirm_authentication(ctx).await?;
+        let authenticated = confirm_authentication(ctx).await.map_err(|e| {
+            tracing::error!("Authentication error: {:?}", e);
+            ExtendedError::new("Unauthorized", StatusCode::UNAUTHORIZED.as_str()).build()
+        })?;
         let authenticated_ref = &authenticated;
 
         let user_fk = ForeignKey {
@@ -861,7 +885,10 @@ impl Mutation {
                     .build()
             })?;
 
-        let authenticated = confirm_authentication(ctx).await?;
+        let authenticated = confirm_authentication(ctx).await.map_err(|e| {
+            tracing::error!("Authentication error: {:?}", e);
+            ExtendedError::new("Unauthorized", StatusCode::UNAUTHORIZED.as_str()).build()
+        })?;
         let authenticated_ref = &authenticated;
 
         let user_fk = ForeignKey {
@@ -956,7 +983,10 @@ impl Mutation {
                     .build()
             })?;
 
-        let authenticated = confirm_authentication(ctx).await?;
+        let authenticated = confirm_authentication(ctx).await.map_err(|e| {
+            tracing::error!("Authentication error: {:?}", e);
+            ExtendedError::new("Unauthorized", StatusCode::UNAUTHORIZED.as_str()).build()
+        })?;
         let authenticated_ref = &authenticated;
 
         let user_fk = ForeignKey {
@@ -1086,7 +1116,10 @@ impl Mutation {
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
-        let authenticated = confirm_authentication(ctx).await?;
+        let authenticated = confirm_authentication(ctx).await.map_err(|e| {
+            tracing::error!("Authentication error: {:?}", e);
+            ExtendedError::new("Unauthorized", StatusCode::UNAUTHORIZED.as_str()).build()
+        })?;
         let authenticated_ref = &authenticated;
 
         let authorization_constraint = AuthorizationConstraint {
@@ -1147,7 +1180,10 @@ impl Mutation {
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
-        let authenticated = confirm_authentication(ctx).await?;
+        let authenticated = confirm_authentication(ctx).await.map_err(|e| {
+            tracing::error!("Authentication error: {:?}", e);
+            ExtendedError::new("Unauthorized", StatusCode::UNAUTHORIZED.as_str()).build()
+        })?;
         let authenticated_ref = &authenticated;
 
         let authorization_constraint = AuthorizationConstraint {
@@ -1249,7 +1285,10 @@ impl Mutation {
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
-        let authenticated = confirm_authentication(ctx).await?;
+        let authenticated = confirm_authentication(ctx).await.map_err(|e| {
+            tracing::error!("Authentication error: {:?}", e);
+            ExtendedError::new("Unauthorized", StatusCode::UNAUTHORIZED.as_str()).build()
+        })?;
         let authenticated_ref = &authenticated;
 
         let authorization_constraint = AuthorizationConstraint {
@@ -1379,7 +1418,10 @@ impl Mutation {
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
-        let authenticated = confirm_authentication(ctx).await?;
+        let authenticated = confirm_authentication(ctx).await.map_err(|e| {
+            tracing::error!("Authentication error: {:?}", e);
+            ExtendedError::new("Unauthorized", StatusCode::UNAUTHORIZED.as_str()).build()
+        })?;
         let authenticated_ref = &authenticated;
 
         let authorization_constraint = AuthorizationConstraint {
@@ -1497,7 +1539,10 @@ impl Mutation {
                     .build()
             })?;
 
-        let authenticated = confirm_authentication(ctx).await?;
+        let authenticated = confirm_authentication(ctx).await.map_err(|e| {
+            tracing::error!("Authentication error: {:?}", e);
+            ExtendedError::new("Unauthorized", StatusCode::UNAUTHORIZED.as_str()).build()
+        })?;
         let authenticated_ref = &authenticated;
 
         let user_fk = ForeignKey {

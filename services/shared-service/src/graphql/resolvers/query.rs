@@ -99,7 +99,10 @@ impl Query {
                     .build()
             })?;
 
-        let authenticated = confirm_authentication(ctx).await?;
+        let authenticated = confirm_authentication(ctx).await.map_err(|e| {
+            tracing::error!("Authentication Error: {:?}", e);
+            ExtendedError::new("Unauthorized", StatusCode::UNAUTHORIZED.as_str()).build()
+        })?;
         let authenticated_ref = &authenticated;
 
         let mut query_results = db
@@ -304,7 +307,10 @@ impl Query {
                     .build()
             })?;
 
-        let authenticated = confirm_authentication(ctx).await?;
+        let authenticated = confirm_authentication(ctx).await.map_err(|e| {
+            tracing::error!("Authentication Error: {:?}", e);
+            ExtendedError::new("Unauthorized", StatusCode::UNAUTHORIZED.as_str()).build()
+        })?;
         let authenticated_ref = &authenticated;
 
         // fetch all messages in DB
@@ -490,7 +496,10 @@ impl Query {
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
-        let authenticated = confirm_authentication(ctx).await?;
+        let authenticated = confirm_authentication(ctx).await.map_err(|e| {
+            tracing::error!("Authentication Error: {:?}", e);
+            ExtendedError::new("Unauthorized", StatusCode::UNAUTHORIZED.as_str()).build()
+        })?;
         let authenticated_ref = &authenticated;
 
         let authorization_constraint = AuthorizationConstraint {
@@ -498,7 +507,12 @@ impl Query {
             privilege: AdminPrivilege::Admin,
         };
         let authorized =
-            confirm_authorization(authenticated_ref, &authorization_constraint, headers).await?;
+            confirm_authorization(authenticated_ref, &authorization_constraint, headers)
+                .await
+                .map_err(|e| {
+                    tracing::error!("Authorization Error: {:?}", e);
+                    ExtendedError::new("Forbidden", StatusCode::FORBIDDEN.as_str()).build()
+                })?;
 
         if !authorized {
             return Err(ExtendedError::new("Forbidden", StatusCode::FORBIDDEN.as_str()).build());
