@@ -14,6 +14,7 @@ pub struct AuthStatus {
     pub sub: String,
     pub current_role: String,
     pub new_access_token: Option<String>,
+    pub current_role_permissions: Vec<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -274,4 +275,11 @@ impl<T: Sync + Send + Clone> ApiResponse<T> {
     pub fn get_new_access_token(&self) -> Option<String> {
         self.metadata.new_access_token.as_ref().cloned()
     }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
+pub struct PandascrowEscrowId {
+    #[graphql(skip)]
+    pub id: RecordId,
+    pub pandascrow_escrow_id: String,
 }
