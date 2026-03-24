@@ -20,6 +20,12 @@ DEFINE TABLE currency_id SCHEMAFULL;
 DEFINE FIELD currency_id ON TABLE currency_id TYPE string;
 DEFINE INDEX currencyIndex ON TABLE currency_id COLUMNS currency_id UNIQUE;
 
+-- A schema-full pandascrow_escrow_id table
+DEFINE TABLE pandascrow_escrow_id SCHEMAFULL;
+-- define some fields
+DEFINE FIELD pandascrow_escrow_id ON TABLE pandascrow_escrow_id TYPE string;
+DEFINE INDEX pandascrowEscrowIdIndex ON TABLE pandascrow_escrow_id COLUMNS pandascrow_escrow_id UNIQUE;
+
 -- A schema-full professional_details table.
 DEFINE TABLE OVERWRITE professional_details SCHEMAFULL TYPE NORMAL;
 -- define some fields.
@@ -275,11 +281,9 @@ DEFINE FIELD updated_at ON TABLE ratecard TYPE datetime
 
 
 -- Relationship between service_request and service.
-DEFINE TABLE service_request SCHEMAFULL TYPE NORMAL;
-DEFINE FIELD description ON TABLE service_request TYPE string;
+DEFINE TABLE OVERWRITE service_request SCHEMAFULL TYPE NORMAL;
 DEFINE FIELD OVERWRITE supporting_docs ON TABLE service_request TYPE array<record<file_id>>;
-DEFINE FIELD start_date ON TABLE service_request VALUE <datetime>$value;
-DEFINE FIELD end_date ON TABLE service_request VALUE <datetime>$value;
+DEFINE FIELD pandascrow_escrow_id ON TABLE service_request TYPE record<pandascrow_escrow_id>;
 DEFINE FIELD created_at ON TABLE service_request TYPE datetime
   DEFAULT time::now() READONLY;
 DEFINE FIELD updated_at ON TABLE service_request TYPE datetime
@@ -310,3 +314,7 @@ DEFINE FIELD updated_at ON TABLE share TYPE datetime
 /* Migrations */
 -- Migration for blog post table
 -- UPDATE blog_post SET is_featured = false, is_premium = false WHERE is_featured IS NONE OR is_premium IS NONE;
+REMOVE FIELD description ON TABLE service_request;
+REMOVE FIELD start_date ON TABLE service_request;
+REMOVE FIELD end_date ON TABLE service_request;
+REMOVE FIELD engagement_length ON TABLE service_request;

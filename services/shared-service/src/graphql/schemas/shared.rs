@@ -1,5 +1,5 @@
 use async_graphql::{ComplexObject, Enum, InputObject, OutputType, SimpleObject};
-use lib::utils::models::{ApiResponse, CurrencyId, UploadedFileId};
+use lib::utils::models::{ApiResponse, CurrencyId, PandascrowEscrowId, UploadedFileId};
 use lib::utils::serialization::convert_float_to_string;
 use serde::{Deserialize, Serialize};
 use surrealdb::RecordId;
@@ -170,19 +170,17 @@ impl Ratecard {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, InputObject)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ServiceRequestInput {
-    pub description: String,
-    #[graphql(skip)]
     pub supporting_docs: Vec<RecordId>,
-    pub start_date: String,
-    pub end_date: String,
+    pub pandascrow_escrow_id: RecordId,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, InputObject)]
 pub struct ServiceRequestInputMetadata {
     pub supporting_docs_file_ids: Vec<String>,
     pub service_ids: Vec<String>,
+    pub pandascrow_escrow_id: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
@@ -190,10 +188,9 @@ pub struct ServiceRequestInputMetadata {
 pub struct ServiceRequest {
     #[graphql(skip)]
     pub id: RecordId,
-    pub description: String,
     pub supporting_docs: Vec<UploadedFileId>,
-    pub start_date: String,
-    pub end_date: String,
+    #[graphql(skip)]
+    pub pandascrow_escrow_id: PandascrowEscrowId,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -202,6 +199,10 @@ pub struct ServiceRequest {
 impl ServiceRequest {
     async fn id(&self) -> String {
         self.id.key().to_string()
+    }
+
+    async fn pandascrow_escrow_id(&self) -> String {
+        self.pandascrow_escrow_id.pandascrow_escrow_id.clone()
     }
 }
 
@@ -215,6 +216,8 @@ pub enum BillingInterval {
     Monthly,
     #[graphql(name = "Annual")]
     Annual,
+    #[graphql(name = "Milestone")]
+    Milestone,
 }
 
 #[derive(SimpleObject)]

@@ -99,7 +99,10 @@ impl Query {
                     .build()
             })?;
 
-        let authenticated = confirm_authentication(ctx).await?;
+        let authenticated = confirm_authentication(ctx).await.map_err(|e| {
+            tracing::error!("Authentication Error: {:?}", e);
+            ExtendedError::new("Unauthorized", StatusCode::UNAUTHORIZED.as_str()).build()
+        })?;
         let authenticated_ref = &authenticated;
 
         let mut query_results = db
@@ -304,7 +307,10 @@ impl Query {
                     .build()
             })?;
 
-        let authenticated = confirm_authentication(ctx).await?;
+        let authenticated = confirm_authentication(ctx).await.map_err(|e| {
+            tracing::error!("Authentication Error: {:?}", e);
+            ExtendedError::new("Unauthorized", StatusCode::UNAUTHORIZED.as_str()).build()
+        })?;
         let authenticated_ref = &authenticated;
 
         // fetch all messages in DB
@@ -350,7 +356,7 @@ impl Query {
             .query(
                 r#"
                 BEGIN TRANSACTION;
-                LET $billing_rates = (SELECT service.title AS service_title, service.id AS service_id, base_rate AS hourly_rate, base_rate * hour_week AS weekly_rate, base_rate * hour_week * 4 AS monthly_rate, base_rate * hour_week * 4 * 12 AS annual_rate FROM rate WHERE service.id IN $service_record_ids GROUP BY service_id);
+                LET $billing_rates = (SELECT service.title AS service_title, service.id AS service_id, base_rate AS hourly_rate, base_rate * hour_week AS weekly_rate, base_rate * hour_week * 4 AS monthly_rate, base_rate * hour_week * 4 * 12 AS annual_rate, base_rate * hour_week * 2 AS milestone_rate FROM rate WHERE service.id IN $service_record_ids GROUP BY service_id);
 
                 LET $rates_count = array::len($billing_rates);
                 LET $bundle_discount = IF $rates_count > 1 {
@@ -368,6 +374,9 @@ impl Query {
                 } ELSE IF $billing_interval = 'Annual' {
                     LET $annual_rates = $billing_rates.map(|$billing_rate| $billing_rate.annual_rate);
                     math::sum($annual_rates)*$bundle_discount
+                } ELSE IF $billing_interval = 'Milestone' {
+                    LET $milestone_rates = $billing_rates.map(|$billing_rate| $billing_rate.milestone_rate);
+                    (math::sum($milestone_rates)*$bundle_discount)/$milestone_rates.len()
                 } ELSE {
                     LET $hourly_rates = $billing_rates.map(|$billing_rate| $billing_rate.hourly_rate);
                     math::sum($hourly_rates)*$bundle_discount
@@ -490,7 +499,10 @@ impl Query {
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
-        let authenticated = confirm_authentication(ctx).await?;
+        let authenticated = confirm_authentication(ctx).await.map_err(|e| {
+            tracing::error!("Authentication Error: {:?}", e);
+            ExtendedError::new("Unauthorized", StatusCode::UNAUTHORIZED.as_str()).build()
+        })?;
         let authenticated_ref = &authenticated;
 
         let authorization_constraint = AuthorizationConstraint {
@@ -498,7 +510,12 @@ impl Query {
             privilege: AdminPrivilege::Admin,
         };
         let authorized =
-            confirm_authorization(authenticated_ref, &authorization_constraint, headers).await?;
+            confirm_authorization(authenticated_ref, &authorization_constraint, headers)
+                .await
+                .map_err(|e| {
+                    tracing::error!("Authorization Error: {:?}", e);
+                    ExtendedError::new("Forbidden", StatusCode::FORBIDDEN.as_str()).build()
+                })?;
 
         if !authorized {
             return Err(ExtendedError::new("Forbidden", StatusCode::FORBIDDEN.as_str()).build());
