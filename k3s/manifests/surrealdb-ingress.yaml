@@ -35,7 +35,7 @@ metadata:
   annotations:
     cert-manager.io/cluster-issuer: "letsencrypt-prod"
     traefik.ingress.kubernetes.io/router.priority: "1"
-    traefik.ingress.kubernetes.io/router.middlewares: "techietenka-surrealist-ipallowlist@kubernetescrd,techietenka-strip-acl@kubernetescrd,techietenka-strip-files@kubernetescrd,techietenka-strip-shared@kubernetescrd,techietenka-strip-email@kubernetescrd"
+    traefik.ingress.kubernetes.io/router.middlewares: "techietenka-surrealist-ipallowlist@kubernetescrd,techietenka-strip-acl@kubernetescrd,techietenka-strip-files@kubernetescrd,techietenka-strip-shared@kubernetescrd,techietenka-strip-email@kubernetescrd,techietenka-strip-payments@kubernetescrd"
 spec:
   ingressClassName: traefik
   rules:
@@ -71,6 +71,14 @@ spec:
             backend:
               service:
                 name: email-db-external
+                port:
+                  number: 8000
+
+          - path: /payments
+            pathType: Prefix
+            backend:
+              service:
+                name: payments-db-external
                 port:
                   number: 8000
   tls:
