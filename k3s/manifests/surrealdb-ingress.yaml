@@ -73,6 +73,14 @@ spec:
                 name: email-db-external
                 port:
                   number: 8000
+
+          - path: /payments
+            pathType: Prefix
+            backend:
+              service:
+                name: payments-db-external
+                port:
+                  number: 8000
   tls:
     - hosts:
       - surrealdb.techietenka.com
