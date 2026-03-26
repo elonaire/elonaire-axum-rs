@@ -149,7 +149,7 @@ impl Query {
             .query("SELECT *, (<-wrote<-user_id)[0].* AS author, (SELECT *, (<-wrote<-user_id)[0][*] AS author, array::len(->has_reply) AS reply_count FROM ->has_comment->comment) AS comments FROM blog_post WHERE status = 'Published' FETCH content_file")
             .query("SELECT * FROM professional_details WHERE active = true")
             .query("SELECT *, ->uses_skill->skill[*] AS skills FROM portfolio")
-            .query("SELECT *, ->achievement[*] AS achievements FROM resume")
+            .query("SELECT *, ->achievement[*] AS achievements FROM resume ORDER BY start_date DESC")
             .query("SELECT * FROM skill")
             .query("SELECT * FROM service")
             .await
