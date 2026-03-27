@@ -49,3 +49,15 @@ spec:
   stripPrefix:
     prefixes:
       - /payments
+
+---
+
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: redirect-to-https
+  namespace: techietenka
+spec:
+  redirectScheme:
+    scheme: https
+    permanent: true
