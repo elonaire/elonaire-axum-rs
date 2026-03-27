@@ -1,4 +1,27 @@
 ---
+# surrealist-ingress
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: surrealist-ingress-http
+  namespace: techietenka
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web
+    traefik.ingress.kubernetes.io/router.middlewares: "techietenka-redirect-to-https@kubernetescrd"
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: surrealist.techietenka.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: surrealist
+                port:
+                  number: 8080
+---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -6,9 +29,9 @@ metadata:
   namespace: techietenka
   annotations:
     cert-manager.io/cluster-issuer: "letsencrypt-prod"
-    traefik.ingress.kubernetes.io/router.priority: "1"
-    traefik.ingress.kubernetes.io/router.entrypoints: web
-    traefik.ingress.kubernetes.io/router.middlewares: "techietenka-surrealist-ipallowlist@kubernetescrd,techietenka-security-headers@kubernetescrd,techietenka-redirect-to-https@kubernetescrd"
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.middlewares: "techietenka-surrealist-ipallowlist@kubernetescrd,techietenka-security-headers@kubernetescrd"
+    traefik.ingress.kubernetes.io/router.tls.options: "default-default@kubernetescrd"
 spec:
   ingressClassName: traefik
   rules:
@@ -24,9 +47,31 @@ spec:
                   number: 8080
   tls:
     - hosts:
-      - surrealist.techietenka.com
+        - surrealist.techietenka.com
       secretName: surrealist-tls-secret
-
+---
+# surrealdb-ingress
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: surrealdb-ingress-http
+  namespace: techietenka
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web
+    traefik.ingress.kubernetes.io/router.middlewares: "techietenka-redirect-to-https@kubernetescrd"
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: surrealdb.techietenka.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: acl-db-external
+                port:
+                  number: 8000
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -35,9 +80,8 @@ metadata:
   namespace: techietenka
   annotations:
     cert-manager.io/cluster-issuer: "letsencrypt-prod"
-    traefik.ingress.kubernetes.io/router.priority: "1"
-    traefik.ingress.kubernetes.io/router.entrypoints: web
-    traefik.ingress.kubernetes.io/router.middlewares: "techietenka-surrealist-ipallowlist@kubernetescrd,techietenka-strip-acl@kubernetescrd,techietenka-strip-files@kubernetescrd,techietenka-strip-shared@kubernetescrd,techietenka-strip-email@kubernetescrd,techietenka-strip-payments@kubernetescrd,techietenka-security-headers@kubernetescrd,techietenka-redirect-to-https@kubernetescrd"
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.middlewares: "techietenka-surrealist-ipallowlist@kubernetescrd,techietenka-strip-acl@kubernetescrd,techietenka-strip-files@kubernetescrd,techietenka-strip-shared@kubernetescrd,techietenka-strip-email@kubernetescrd,techietenka-strip-payments@kubernetescrd,techietenka-security-headers@kubernetescrd"
     traefik.ingress.kubernetes.io/router.tls.options: "default-default@kubernetescrd"
 spec:
   ingressClassName: traefik
@@ -52,7 +96,6 @@ spec:
                 name: acl-db-external
                 port:
                   number: 8000
-
           - path: /files
             pathType: Prefix
             backend:
@@ -60,7 +103,6 @@ spec:
                 name: files-db-external
                 port:
                   number: 8000
-
           - path: /shared
             pathType: Prefix
             backend:
@@ -68,7 +110,6 @@ spec:
                 name: shared-db-external
                 port:
                   number: 8000
-
           - path: /email
             pathType: Prefix
             backend:
@@ -76,7 +117,6 @@ spec:
                 name: email-db-external
                 port:
                   number: 8000
-
           - path: /payments
             pathType: Prefix
             backend:
@@ -86,5 +126,5 @@ spec:
                   number: 8000
   tls:
     - hosts:
-      - surrealdb.techietenka.com
+        - surrealdb.techietenka.com
       secretName: surrealdb-tls-secret
