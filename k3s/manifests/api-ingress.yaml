@@ -31,7 +31,7 @@ metadata:
     cert-manager.io/cluster-issuer: "letsencrypt-prod"
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
     traefik.ingress.kubernetes.io/router.middlewares: "techietenka-strip-acl@kubernetescrd,techietenka-strip-files@kubernetescrd,techietenka-strip-shared@kubernetescrd,techietenka-strip-email@kubernetescrd,techietenka-security-headers@kubernetescrd"
-    traefik.ingress.kubernetes.io/router.tls.options: "default-default@kubernetescrd"
+    traefik.ingress.kubernetes.io/router.tls.options: "techietenka-default-tlsoption@kubernetescrd"
 spec:
   ingressClassName: traefik
   rules:
