@@ -47,13 +47,11 @@ impl Query {
                     .build()
             })?;
 
+        // The trick here is cover all possible filter combinations
         let mut query_result = db
             .query("
-                <set> array::flatten([
-                   	(SELECT *, (<-wrote<-user_id)[0][*] AS author, (SELECT *, (<-wrote<-user_id)[0][*] AS author, array::len(->has_reply) AS reply_count FROM ->has_comment->comment) AS comments FROM blog_post WHERE ($filters.status != NONE AND $filters.is_featured = NONE AND status = $filters.status) OR ($filters.status != NONE AND $filters.is_featured != NONE AND is_featured = $filters.is_featured AND status = $filters.status) OR ($filters.status = NONE AND $filters.is_featured != NONE AND is_featured = $filters.is_featured) FETCH content_file),
-                   	(SELECT * OMIT relevance FROM (SELECT *, (<-wrote<-user_id)[0][*] AS author, (SELECT *, (<-wrote<-user_id)[0][*] AS author, array::len(->has_reply) AS reply_count FROM ->has_comment->comment) AS comments, search::score(0) + search::score(1) AS relevance FROM blog_post WHERE title @0@ $filters.search_term OR content_text_only @1@ $filters.search_term ORDER BY relevance DESC
-                    FETCH content_file))
-                ]);
+                (SELECT *, (<-wrote<-user_id)[0][*] AS author, (SELECT *, (<-wrote<-user_id)[0][*] AS author, array::len(->has_reply) AS reply_count FROM ->has_comment->comment) AS comments FROM blog_post WHERE ($filters.search_term != NONE AND (title @0@ $filters.search_term OR content_text_only @1@ $filters.search_term)) OR ($filters.status != NONE AND status = $filters.status AND $filters.is_featured != NONE AND is_featured = $filters.is_featured) OR ($filters.status = NONE AND $filters.is_featured != NONE AND is_featured = $filters.is_featured) OR ($filters.status != NONE AND status = $filters.status AND $filters.is_featured = NONE) ORDER BY relevance DESC
+                 FETCH content_file)
                 ")
             .bind(("filters", filters))
             .await
