@@ -4,19 +4,8 @@ metadata:
   name: allow-egress-internet
   namespace: techietenka
 spec:
-  podSelector:
-    matchLabels:
-      app: acl-service
-  policyTypes:
-    - Egress
+  podSelector: {}
   egress:
-    - to:
-        - ipBlock:
-            cidr: 0.0.0.0/0
-      ports:
-        - protocol: TCP
-          port: 443
-        - protocol: UDP
-          port: 53
-        - protocol: TCP
-          port: 53
+    - {}
+  policyTypes:
+  - Egress
