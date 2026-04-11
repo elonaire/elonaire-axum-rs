@@ -40,7 +40,7 @@ metadata:
       techietenka-strip-files@kubernetescrd,
       techietenka-strip-shared@kubernetescrd,
       techietenka-strip-email@kubernetescrd
-    traefik.ingress.kubernetes.io/router.tls.options: "default@kubernetescrd"
+    traefik.ingress.kubernetes.io/router.tls.options: "techietenka-default@kubernetescrd"
 spec:
   ingressClassName: traefik
   rules:
@@ -94,7 +94,7 @@ metadata:
     traefik.ingress.kubernetes.io/router.middlewares: >-
       techietenka-payments-chain@kubernetescrd,
       techietenka-strip-payments@kubernetescrd
-    traefik.ingress.kubernetes.io/router.tls.options: "default@kubernetescrd"
+    traefik.ingress.kubernetes.io/router.tls.options: "techietenka-default@kubernetescrd"
     traefik.ingress.kubernetes.io/router.priority: "10"
 spec:
   ingressClassName: traefik
