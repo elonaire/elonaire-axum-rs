@@ -1,5 +1,6 @@
 ---
-# surrealist-ingress
+# surrealist-ingress-http
+# Handles HTTP - redirects to HTTPS only
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -21,7 +22,10 @@ spec:
                 name: surrealist
                 port:
                   number: 8080
+
 ---
+# surrealist-ingress
+# UI tool - IP-restricted via allowlist + full secure-chain
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -30,8 +34,10 @@ metadata:
   annotations:
     cert-manager.io/cluster-issuer: "letsencrypt-prod"
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
-    traefik.ingress.kubernetes.io/router.middlewares: "techietenka-surrealist-ipallowlist@kubernetescrd,techietenka-security-headers@kubernetescrd"
-    traefik.ingress.kubernetes.io/router.tls.options: "techietenka-default-tlsoption@kubernetescrd"
+    traefik.ingress.kubernetes.io/router.middlewares: >-
+      techietenka-surrealist-ipallowlist@kubernetescrd,
+      techietenka-secure-chain@kubernetescrd
+    traefik.ingress.kubernetes.io/router.tls.options: "default@kubernetescrd"
 spec:
   ingressClassName: traefik
   rules:
@@ -49,8 +55,10 @@ spec:
     - hosts:
         - surrealist.techietenka.com
       secretName: surrealist-tls-secret
+
 ---
-# surrealdb-ingress
+# surrealdb-ingress-http
+# Handles HTTP - redirects to HTTPS only
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -72,7 +80,11 @@ spec:
                 name: acl-db-external
                 port:
                   number: 8000
+
 ---
+# surrealdb-ingress
+# Direct DB access - IP-restricted + secure-chain + all strip middlewares
+# /payments gets its own ingress below for stricter rate limiting
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -81,8 +93,14 @@ metadata:
   annotations:
     cert-manager.io/cluster-issuer: "letsencrypt-prod"
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
-    traefik.ingress.kubernetes.io/router.middlewares: "techietenka-surrealist-ipallowlist@kubernetescrd,techietenka-strip-acl@kubernetescrd,techietenka-strip-files@kubernetescrd,techietenka-strip-shared@kubernetescrd,techietenka-strip-email@kubernetescrd,techietenka-strip-payments@kubernetescrd,techietenka-security-headers@kubernetescrd"
-    traefik.ingress.kubernetes.io/router.tls.options: "techietenka-default-tlsoption@kubernetescrd"
+    traefik.ingress.kubernetes.io/router.middlewares: >-
+      techietenka-surrealist-ipallowlist@kubernetescrd,
+      techietenka-secure-chain@kubernetescrd,
+      techietenka-strip-acl@kubernetescrd,
+      techietenka-strip-files@kubernetescrd,
+      techietenka-strip-shared@kubernetescrd,
+      techietenka-strip-email@kubernetescrd
+    traefik.ingress.kubernetes.io/router.tls.options: "default@kubernetescrd"
 spec:
   ingressClassName: traefik
   rules:
@@ -117,6 +135,34 @@ spec:
                 name: email-db-external
                 port:
                   number: 8000
+  tls:
+    - hosts:
+        - surrealdb.techietenka.com
+      secretName: surrealdb-tls-secret
+
+---
+# surrealdb-ingress-payments
+# Separated out to apply payments-chain (strict rate limiting)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: surrealdb-ingress-payments
+  namespace: techietenka
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.middlewares: >-
+      techietenka-surrealist-ipallowlist@kubernetescrd,
+      techietenka-payments-chain@kubernetescrd,
+      techietenka-strip-payments@kubernetescrd
+    traefik.ingress.kubernetes.io/router.tls.options: "default@kubernetescrd"
+    traefik.ingress.kubernetes.io/router.priority: "10"
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: surrealdb.techietenka.com
+      http:
+        paths:
           - path: /payments
             pathType: Prefix
             backend:
