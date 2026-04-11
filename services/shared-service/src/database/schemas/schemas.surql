@@ -283,7 +283,9 @@ DEFINE FIELD updated_at ON TABLE ratecard TYPE datetime
 -- Relationship between service_request and service.
 DEFINE TABLE OVERWRITE service_request SCHEMAFULL TYPE NORMAL;
 DEFINE FIELD OVERWRITE supporting_docs ON TABLE service_request TYPE array<record<file_id>>;
-DEFINE FIELD pandascrow_escrow_id ON TABLE service_request TYPE record<pandascrow_escrow_id>;
+DEFINE FIELD description ON TABLE service_request TYPE string;
+DEFINE FIELD start_date ON TABLE service_request VALUE <datetime>$value;
+DEFINE FIELD engagement_length ON TABLE service_request TYPE int;
 DEFINE FIELD created_at ON TABLE service_request TYPE datetime
   DEFAULT time::now() READONLY;
 DEFINE FIELD updated_at ON TABLE service_request TYPE datetime
@@ -314,7 +316,8 @@ DEFINE FIELD updated_at ON TABLE share TYPE datetime
 /* Migrations */
 -- Migration for blog post table
 -- UPDATE blog_post SET is_featured = false, is_premium = false WHERE is_featured IS NONE OR is_premium IS NONE;
-REMOVE FIELD description ON TABLE service_request;
-REMOVE FIELD start_date ON TABLE service_request;
-REMOVE FIELD end_date ON TABLE service_request;
-REMOVE FIELD engagement_length ON TABLE service_request;
+-- REMOVE FIELD description ON TABLE service_request;
+-- REMOVE FIELD start_date ON TABLE service_request;
+-- REMOVE FIELD end_date ON TABLE service_request;
+-- REMOVE FIELD engagement_length ON TABLE service_request;
+REMOVE FIELD pandascrow_escrow_id ON TABLE service_request;

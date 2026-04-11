@@ -10,7 +10,7 @@ use lib::utils::api_response::synthesize_graphql_response;
 use lib::utils::grpc::{confirm_authorization, create_file_from_content};
 use lib::utils::models::{
     AdminPrivilege, AllowedCreateFileExtension, AuthorizationConstraint, CreateFileInfo,
-    CurrencyId, ForeignKey, PandascrowEscrowId, UploadedFileId, UserId,
+    CurrencyId, ForeignKey, UploadedFileId, UserId,
 };
 use lib::{
     integration::foreign_key::add_foreign_key_if_not_exists,
@@ -1269,7 +1269,7 @@ impl Mutation {
     pub async fn create_service_request(
         &self,
         ctx: &Context<'_>,
-        // mut service_request_input: ServiceRequestInput,
+        mut service_request_input: ServiceRequestInput,
         service_request_input_metadata: ServiceRequestInputMetadata,
     ) -> async_graphql::Result<GraphQLApiResponse<ServiceRequest>> {
         let db = ctx
@@ -1320,31 +1320,6 @@ impl Mutation {
                 StatusCode::INTERNAL_SERVER_ERROR.as_str(),
             )
             .build());
-        };
-
-        let pandascrow_escrow_id_fk = ForeignKey {
-            table: "pandascrow_escrow_id".to_string(),
-            column: "pandascrow_escrow_id".to_string(),
-            foreign_key: service_request_input_metadata.pandascrow_escrow_id.clone(),
-        };
-
-        let Some(added_pandascrow_escrow_id) = add_foreign_key_if_not_exists::<
-            Extension<Arc<Surreal<SurrealClient>>>,
-            PandascrowEscrowId,
-        >(db, pandascrow_escrow_id_fk)
-        .await
-        else {
-            tracing::error!("Failed to add user_id");
-            return Err(ExtendedError::new(
-                "Something went wrong",
-                StatusCode::INTERNAL_SERVER_ERROR.as_str(),
-            )
-            .build());
-        };
-
-        let mut service_request_input: ServiceRequestInput = ServiceRequestInput {
-            pandascrow_escrow_id: added_pandascrow_escrow_id.id,
-            supporting_docs: Vec::new(),
         };
 
         for file_id in &service_request_input_metadata.supporting_docs_file_ids {

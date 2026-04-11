@@ -38,7 +38,6 @@ spec:
   stripPrefix:
     prefixes:
       - /shared
-
 ---
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
@@ -49,9 +48,7 @@ spec:
   stripPrefix:
     prefixes:
       - /payments
-
 ---
-
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
@@ -61,9 +58,8 @@ spec:
   redirectScheme:
     scheme: https
     permanent: true
-
 ---
-
+# Extended: added frameDeny, CSP, removed server fingerprint, X-Permitted-Cross-Domain-Policies
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
@@ -78,7 +74,79 @@ spec:
     forceSTSHeader: true
     contentTypeNosniff: true
     browserXssFilter: true
+    frameDeny: true   # Upgrades X-Frame-Options from SAMEORIGIN to DENY
     referrerPolicy: "strict-origin-when-cross-origin"
-    permissionsPolicy: "camera=(), microphone=(), geolocation=()"
+    permissionsPolicy: "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
     customResponseHeaders:
-      X-Frame-Options: "SAMEORIGIN"
+      X-Frame-Options: "DENY"
+      X-Permitted-Cross-Domain-Policies: "none"
+      Content-Security-Policy: "default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+      Server: ""   # Strip server fingerprint
+
+---
+# NEW: Rate limiting - general public routes
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: rate-limit
+  namespace: techietenka
+spec:
+  rateLimit:
+    average: 100
+    burst: 50
+
+---
+# NEW: Stricter rate limiting for sensitive endpoints (payments, auth)
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: rate-limit-strict
+  namespace: techietenka
+spec:
+  rateLimit:
+    average: 20
+    burst: 10
+
+---
+# NEW: Simultaneous connection cap (anti-slowloris)
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: conn-limit
+  namespace: techietenka
+spec:
+  inFlightReq:
+    amount: 100
+    sourceCriterion:
+      ipStrategy:
+        depth: 1
+
+---
+# NEW: Chain for all public-facing routes
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: secure-chain
+  namespace: techietenka
+spec:
+  chain:
+    middlewares:
+      - name: redirect-to-https
+      - name: security-headers
+      - name: rate-limit
+      - name: conn-limit
+
+---
+# NEW: Chain for payments route (strict rate limit + security headers)
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: payments-chain
+  namespace: techietenka
+spec:
+  chain:
+    middlewares:
+      - name: redirect-to-https
+      - name: security-headers
+      - name: rate-limit-strict
+      - name: conn-limit

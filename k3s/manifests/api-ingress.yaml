@@ -1,5 +1,6 @@
 ---
 # api-ingress-http
+# Handles HTTP traffic - only job is to redirect to HTTPS
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -21,7 +22,10 @@ spec:
                 name: acl-service
                 port:
                   number: 3007
+
 ---
+# api-ingress
+# Handles HTTPS traffic - uses secure-chain for consistent security baseline
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -30,8 +34,13 @@ metadata:
   annotations:
     cert-manager.io/cluster-issuer: "letsencrypt-prod"
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
-    traefik.ingress.kubernetes.io/router.middlewares: "techietenka-strip-acl@kubernetescrd,techietenka-strip-files@kubernetescrd,techietenka-strip-shared@kubernetescrd,techietenka-strip-email@kubernetescrd,techietenka-security-headers@kubernetescrd"
-    traefik.ingress.kubernetes.io/router.tls.options: "techietenka-default-tlsoption@kubernetescrd"
+    traefik.ingress.kubernetes.io/router.middlewares: >-
+      techietenka-secure-chain@kubernetescrd,
+      techietenka-strip-acl@kubernetescrd,
+      techietenka-strip-files@kubernetescrd,
+      techietenka-strip-shared@kubernetescrd,
+      techietenka-strip-email@kubernetescrd
+    traefik.ingress.kubernetes.io/router.tls.options: "default@kubernetescrd"
 spec:
   ingressClassName: traefik
   rules:
@@ -66,6 +75,40 @@ spec:
                 name: shared-service
                 port:
                   number: 3002
+  tls:
+    - hosts:
+        - api.techietenka.com
+      secretName: api-tls-secret
+
+---
+# api-ingress-payments
+# Uses payments-chain which swaps in rate-limit-strict instead of rate-limit
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api-ingress-payments
+  namespace: techietenka
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.middlewares: >-
+      techietenka-payments-chain@kubernetescrd,
+      techietenka-strip-payments@kubernetescrd
+    traefik.ingress.kubernetes.io/router.tls.options: "default@kubernetescrd"
+    traefik.ingress.kubernetes.io/router.priority: "10"
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: api.techietenka.com
+      http:
+        paths:
+          - path: /payments
+            pathType: Prefix
+            backend:
+              service:
+                name: payments-service
+                port:
+                  number: 3013
   tls:
     - hosts:
         - api.techietenka.com
