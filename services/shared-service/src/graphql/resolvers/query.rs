@@ -374,7 +374,7 @@ impl Query {
                     math::sum($annual_rates)*$bundle_discount
                 } ELSE IF $billing_interval = 'Milestone' {
                     LET $milestone_rates = $billing_rates.map(|$billing_rate| $billing_rate.milestone_rate);
-                    (math::sum($milestone_rates)*$bundle_discount)/$milestone_rates.len()
+                    (math::sum($milestone_rates)*$bundle_discount)/(1.5)
                 } ELSE {
                     LET $hourly_rates = $billing_rates.map(|$billing_rate| $billing_rate.hourly_rate);
                     math::sum($hourly_rates)*$bundle_discount

@@ -276,10 +276,3 @@ impl<T: Sync + Send + Clone> ApiResponse<T> {
         self.metadata.new_access_token.as_ref().cloned()
     }
 }
-
-#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
-pub struct PandascrowEscrowId {
-    #[graphql(skip)]
-    pub id: RecordId,
-    pub pandascrow_escrow_id: String,
-}
