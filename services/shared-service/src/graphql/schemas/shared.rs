@@ -176,7 +176,7 @@ pub struct ServiceRequestInput {
     pub supporting_docs: Vec<RecordId>,
     pub description: String,
     pub start_date: String,
-    pub engagement_length: String,
+    pub engagement_length: i32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, InputObject)]
@@ -191,10 +191,9 @@ pub struct ServiceRequest {
     #[graphql(skip)]
     pub id: RecordId,
     pub supporting_docs: Vec<UploadedFileId>,
-    #[graphql(skip)]
     pub description: String,
     pub start_date: String,
-    pub engagement_length: String,
+    pub engagement_length: i32,
     pub created_at: String,
     pub updated_at: String,
 }
