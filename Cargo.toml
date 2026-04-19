@@ -49,6 +49,7 @@ markdown = "1.0.0"
 scraper = "0.25.0"
 syntect = "5.3.0"
 html2text = "0.16.7"
+anyhow = "1.0.102"
 
 # Internal
 lib = { path = "lib" }
