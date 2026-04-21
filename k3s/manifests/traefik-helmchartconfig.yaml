@@ -7,6 +7,6 @@ spec:
   valuesContent: |-
     providers:
       kubernetesCRD:
-        allowCrossNamespace: false
+        allowCrossNamespace: true
         allowEmptyServices: true
       kubernetesIngress: {}
