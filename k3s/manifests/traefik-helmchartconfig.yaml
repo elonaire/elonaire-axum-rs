@@ -11,5 +11,6 @@ spec:
         allowEmptyServices: true
       kubernetesIngress:
         allowEmptyServices: true
+        allowExternalNameServices: true
         publishedService:
           enabled: true
