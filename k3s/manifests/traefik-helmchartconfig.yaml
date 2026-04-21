@@ -9,4 +9,8 @@ spec:
       kubernetesCRD:
         allowCrossNamespace: true
         allowEmptyServices: true
-      kubernetesIngress: {}
+      kubernetesIngress:
+        allowEmptyServices: true
+        ingressEndpoint:
+          publishedService:
+            enabled: true
