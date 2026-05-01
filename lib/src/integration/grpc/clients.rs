@@ -1,4 +1,4 @@
-use crate::{convert_from_protobuf_bidirectionally, utils};
+use crate::utils;
 
 // should match the package name in the .proto file
 pub mod acl_service {
@@ -51,11 +51,6 @@ impl From<acl_service::AuthorizationConstraint> for utils::models::Authorization
     fn from(authorization_constraint: acl_service::AuthorizationConstraint) -> Self {
         Self {
             permissions: authorization_constraint.permissions,
-            privilege: authorization_constraint
-                .privilege
-                .unwrap()
-                .try_into()
-                .unwrap(),
         }
     }
 }
@@ -65,7 +60,6 @@ impl From<utils::models::AuthorizationConstraint> for acl_service::Authorization
     fn from(authorization_constraint: utils::models::AuthorizationConstraint) -> Self {
         Self {
             permissions: authorization_constraint.permissions,
-            privilege: Some(authorization_constraint.privilege.try_into().unwrap()),
         }
     }
 }

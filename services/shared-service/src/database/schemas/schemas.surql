@@ -43,7 +43,7 @@ DEFINE FIELD active ON TABLE professional_details TYPE bool
 DEFINE INDEX occupationIndex ON TABLE professional_details COLUMNS occupation UNIQUE;
 DEFINE FIELD description ON TABLE professional_details TYPE string;
 -- I had to cast this way because the client submits a datetime string and explictly specifying datetime type gives an error
-DEFINE FIELD start_date ON TABLE professional_details VALUE <datetime>$value;
+DEFINE FIELD OVERWRITE start_date ON TABLE professional_details TYPE datetime VALUE <datetime>$value;
 DEFINE FIELD created_at ON TABLE professional_details TYPE datetime
   DEFAULT time::now() READONLY;
 DEFINE FIELD updated_at ON TABLE professional_details TYPE datetime
@@ -55,8 +55,8 @@ DEFINE TABLE portfolio SCHEMAFULL TYPE NORMAL;
 DEFINE FIELD title ON TABLE portfolio TYPE string;
 DEFINE FIELD description ON TABLE portfolio TYPE string;
 -- I had to cast this way because the client submits a datetime string and explictly specifying datetime type gives an error
-DEFINE FIELD start_date ON TABLE portfolio VALUE <datetime>$value;
-DEFINE FIELD end_date ON TABLE portfolio VALUE IF $value IS NOT NONE { <datetime>$value } ELSE { NONE };
+DEFINE FIELD OVERWRITE start_date ON TABLE portfolio TYPE datetime VALUE <datetime>$value;
+DEFINE FIELD OVERWRITE end_date ON TABLE portfolio TYPE option<datetime> VALUE IF $value IS NOT NONE { <datetime>$value } ELSE { NONE };
 DEFINE FIELD link ON TABLE portfolio TYPE string;
 DEFINE FIELD thumbnail ON TABLE portfolio TYPE string
   ASSERT string::is::url($value);
@@ -77,8 +77,8 @@ DEFINE FIELD section ON TABLE resume TYPE string
 DEFINE FIELD title ON TABLE resume TYPE string;
 DEFINE FIELD more_info ON TABLE resume TYPE string;
 -- I had to cast this way because the client submits a datetime string and explictly specifying datetime type gives an error
-DEFINE FIELD start_date ON TABLE resume VALUE <datetime>$value;
-DEFINE FIELD end_date ON TABLE resume VALUE IF $value IS NOT NONE { <datetime>$value } ELSE { NONE };
+DEFINE FIELD OVERWRITE start_date ON TABLE resume TYPE datetime VALUE <datetime>$value;
+DEFINE FIELD OVERWRITE end_date ON TABLE resume TYPE option<datetime> VALUE IF $value IS NOT NONE { <datetime>$value } ELSE { NONE };
 DEFINE FIELD link ON TABLE resume TYPE option<string>
   DEFAULT NONE;
 DEFINE FIELD created_at ON TABLE resume TYPE datetime
@@ -134,8 +134,8 @@ DEFINE FIELD updated_at ON TABLE rate TYPE datetime
 -- DEFINE TABLE discount SCHEMAFULL TYPE NORMAL;
 -- DEFINE FIELD percentage ON TABLE discount TYPE int
 --     ASSERT 0 > $value <= 1;
--- DEFINE FIELD start_date ON TABLE discount VALUE <datetime>$value;
--- DEFINE FIELD end_date ON TABLE discount VALUE <datetime>$value;
+-- DEFINE FIELD start_date ON TABLE discount TYPE datetime VALUE <datetime>$value;
+-- DEFINE FIELD end_date ON TABLE discount TYPE option<datetime> VALUE IF $value IS NOT NONE { <datetime>$value } ELSE { NONE };
 -- DEFINE FIELD created_at ON TABLE discount TYPE datetime
 --   DEFAULT time::now() READONLY;
 -- DEFINE FIELD updated_at ON TABLE discount TYPE datetime
@@ -177,8 +177,8 @@ DEFINE FIELD status ON TABLE blog_post TYPE option<string>
 -- Allow only these values in the array
   ASSERT $value INSIDE ["Draft", "Published", "Archived"]
   DEFAULT "Draft";
-DEFINE FIELD published_date ON TABLE blog_post VALUE
-  IF $value IS NOT NONE { <datetime>$value }ELSE { NONE };
+DEFINE FIELD OVERWRITE published_date ON TABLE blog_post TYPE option<datetime> VALUE
+  IF $value IS NOT NONE { <datetime>$value } ELSE { NONE };
 DEFINE FIELD is_featured ON TABLE blog_post TYPE bool
   DEFAULT false;
 DEFINE FIELD is_premium ON TABLE blog_post TYPE bool
@@ -259,7 +259,7 @@ DEFINE FIELD level ON TABLE skill TYPE option<string>
   ASSERT $value INSIDE ["Beginner", "Intermediate", "Advanced", "Expert", None]
   DEFAULT None;
 -- I had to cast this way because the client submits a datetime string and explictly specifying datetime type gives an error
-DEFINE FIELD start_date ON TABLE skill VALUE <datetime>$value;
+DEFINE FIELD OVERWRITE start_date ON TABLE skill TYPE datetime VALUE <datetime>$value;
 DEFINE FIELD created_at ON TABLE skill TYPE datetime
   DEFAULT time::now() READONLY;
 DEFINE FIELD updated_at ON TABLE skill TYPE datetime
@@ -284,7 +284,7 @@ DEFINE FIELD updated_at ON TABLE ratecard TYPE datetime
 DEFINE TABLE OVERWRITE service_request SCHEMAFULL TYPE NORMAL;
 DEFINE FIELD OVERWRITE supporting_docs ON TABLE service_request TYPE array<record<file_id>>;
 DEFINE FIELD description ON TABLE service_request TYPE string;
-DEFINE FIELD start_date ON TABLE service_request VALUE <datetime>$value;
+DEFINE FIELD OVERWRITE start_date ON TABLE service_request TYPE datetime VALUE <datetime>$value;
 DEFINE FIELD engagement_length ON TABLE service_request TYPE int;
 DEFINE FIELD created_at ON TABLE service_request TYPE datetime
   DEFAULT time::now() READONLY;

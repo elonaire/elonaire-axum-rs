@@ -9,8 +9,8 @@ use hyper::{HeaderMap, StatusCode};
 use lib::utils::api_response::synthesize_graphql_response;
 use lib::utils::grpc::{confirm_authorization, create_file_from_content};
 use lib::utils::models::{
-    AdminPrivilege, AllowedCreateFileExtension, AuthorizationConstraint, CreateFileInfo,
-    CurrencyId, ForeignKey, UploadedFileId, UserId,
+    AllowedCreateFileExtension, AuthorizationConstraint, CreateFileInfo, CurrencyId, ForeignKey,
+    UploadedFileId, UserId,
 };
 use lib::{
     integration::foreign_key::add_foreign_key_if_not_exists,
@@ -59,7 +59,6 @@ impl Mutation {
 
         let authorization_constraint = AuthorizationConstraint {
             permissions: vec!["write:professional_details".into()],
-            privilege: AdminPrivilege::SuperAdmin,
         };
         let authorized =
             confirm_authorization(authenticated_ref, &authorization_constraint, headers).await?;
@@ -149,7 +148,6 @@ impl Mutation {
 
         let authorization_constraint = AuthorizationConstraint {
             permissions: vec!["write:service".into()],
-            privilege: AdminPrivilege::SuperAdmin,
         };
         let authorized =
             confirm_authorization(authenticated_ref, &authorization_constraint, headers).await?;
@@ -240,7 +238,6 @@ impl Mutation {
 
         let authorization_constraint = AuthorizationConstraint {
             permissions: vec!["write:portfolio".into()],
-            privilege: AdminPrivilege::SuperAdmin,
         };
         let authorized =
             confirm_authorization(authenticated_ref, &authorization_constraint, headers).await?;
@@ -346,7 +343,6 @@ impl Mutation {
 
         let authorization_constraint = AuthorizationConstraint {
             permissions: vec!["write:resume_item".into()],
-            privilege: AdminPrivilege::SuperAdmin,
         };
         let authorized =
             confirm_authorization(authenticated_ref, &authorization_constraint, headers).await?;
@@ -453,7 +449,6 @@ impl Mutation {
 
         let authorization_constraint = AuthorizationConstraint {
             permissions: vec!["write:skill".into()],
-            privilege: AdminPrivilege::SuperAdmin,
         };
         let authorized =
             confirm_authorization(authenticated_ref, &authorization_constraint, headers).await?;
@@ -545,7 +540,6 @@ impl Mutation {
 
         let authorization_constraint = AuthorizationConstraint {
             permissions: vec!["write:blog_post".into()],
-            privilege: AdminPrivilege::Admin,
         };
         let authorized =
             confirm_authorization(authenticated_ref, &authorization_constraint, headers).await?;
@@ -1124,7 +1118,6 @@ impl Mutation {
 
         let authorization_constraint = AuthorizationConstraint {
             permissions: vec!["write:blog_post".into()],
-            privilege: AdminPrivilege::Admin,
         };
         let authorized =
             confirm_authorization(authenticated_ref, &authorization_constraint, headers).await?;
@@ -1188,7 +1181,6 @@ impl Mutation {
 
         let authorization_constraint = AuthorizationConstraint {
             permissions: vec!["write:ratecard".into()],
-            privilege: AdminPrivilege::SuperAdmin,
         };
         let authorized =
             confirm_authorization(authenticated_ref, &authorization_constraint, headers).await?;
@@ -1293,7 +1285,6 @@ impl Mutation {
 
         let authorization_constraint = AuthorizationConstraint {
             permissions: vec!["write:service_request".into()],
-            privilege: AdminPrivilege::None,
         };
         let authorized =
             confirm_authorization(authenticated_ref, &authorization_constraint, headers).await?;
@@ -1422,7 +1413,6 @@ impl Mutation {
 
         let authorization_constraint = AuthorizationConstraint {
             permissions: vec!["write:service_rate".into()],
-            privilege: AdminPrivilege::None,
         };
         let authorized =
             confirm_authorization(authenticated_ref, &authorization_constraint, headers).await?;

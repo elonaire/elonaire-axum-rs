@@ -24,7 +24,7 @@ use lib::{
         api_response::synthesize_graphql_response,
         custom_error::ExtendedError,
         grpc::confirm_authorization,
-        models::{AdminPrivilege, AuthorizationConstraint, ForeignKey, UserId},
+        models::{AuthorizationConstraint, ForeignKey, UserId},
         serialization::convert_float_to_string,
     },
 };
@@ -505,7 +505,6 @@ impl Query {
 
         let authorization_constraint = AuthorizationConstraint {
             permissions: vec!["read:service_request".into()],
-            privilege: AdminPrivilege::Admin,
         };
         let authorized =
             confirm_authorization(authenticated_ref, &authorization_constraint, headers)
