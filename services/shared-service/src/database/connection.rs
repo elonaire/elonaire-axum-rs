@@ -46,8 +46,8 @@ pub async fn create_db_connection() -> Result<Surreal<Client>, Error> {
     })?;
 
     db.signin(Root {
-        username: &db_user,
-        password: &db_password,
+        username: db_user,
+        password: db_password,
     })
     .await
     .map_err(|e| {

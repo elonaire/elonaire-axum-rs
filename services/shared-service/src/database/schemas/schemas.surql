@@ -20,30 +20,16 @@ DEFINE TABLE currency_id SCHEMAFULL;
 DEFINE FIELD currency_id ON TABLE currency_id TYPE string;
 DEFINE INDEX currencyIndex ON TABLE currency_id COLUMNS currency_id UNIQUE;
 
--- A schema-full pandascrow_escrow_id table
-DEFINE TABLE pandascrow_escrow_id SCHEMAFULL;
--- define some fields
-DEFINE FIELD pandascrow_escrow_id ON TABLE pandascrow_escrow_id TYPE string;
-DEFINE INDEX pandascrowEscrowIdIndex ON TABLE pandascrow_escrow_id COLUMNS pandascrow_escrow_id UNIQUE;
-
 -- A schema-full professional_details table.
 DEFINE TABLE OVERWRITE professional_details SCHEMAFULL TYPE NORMAL;
 -- define some fields.
 DEFINE FIELD occupation ON TABLE professional_details TYPE string;
 DEFINE FIELD active ON TABLE professional_details TYPE bool
   DEFAULT false;
--- DEFINE EVENT enforce_single_true ON professional_details WHEN $event = 'CREATE' OR $event = 'UPDATE' THEN {
---     IF $after.active {
---         LET $existing_true = SELECT * FROM professional_details WHERE active = true;
---         IF array::len($existing_true) > 0 {
---             THROW 'You have an active professional detail already. Please deactivate it first.';
---         };
---     };
--- };
 DEFINE INDEX occupationIndex ON TABLE professional_details COLUMNS occupation UNIQUE;
 DEFINE FIELD description ON TABLE professional_details TYPE string;
 -- I had to cast this way because the client submits a datetime string and explictly specifying datetime type gives an error
-DEFINE FIELD start_date ON TABLE professional_details VALUE <datetime>$value;
+DEFINE FIELD OVERWRITE start_date ON TABLE professional_details TYPE datetime VALUE <datetime>$value;
 DEFINE FIELD created_at ON TABLE professional_details TYPE datetime
   DEFAULT time::now() READONLY;
 DEFINE FIELD updated_at ON TABLE professional_details TYPE datetime
@@ -55,14 +41,18 @@ DEFINE TABLE portfolio SCHEMAFULL TYPE NORMAL;
 DEFINE FIELD title ON TABLE portfolio TYPE string;
 DEFINE FIELD description ON TABLE portfolio TYPE string;
 -- I had to cast this way because the client submits a datetime string and explictly specifying datetime type gives an error
-DEFINE FIELD start_date ON TABLE portfolio VALUE <datetime>$value;
-DEFINE FIELD end_date ON TABLE portfolio VALUE IF $value IS NOT NONE { <datetime>$value } ELSE { NONE };
+DEFINE FIELD OVERWRITE start_date ON TABLE portfolio TYPE datetime VALUE <datetime>$value;
+DEFINE FIELD OVERWRITE end_date ON TABLE portfolio TYPE option<datetime> VALUE IF $value IS NOT NONE { <datetime>$value } ELSE { NONE };
 DEFINE FIELD link ON TABLE portfolio TYPE string;
 DEFINE FIELD thumbnail ON TABLE portfolio TYPE string
-  ASSERT string::is::url($value);
-DEFINE FIELD category ON TABLE portfolio TYPE string
--- Allow only these values in the array
-  ASSERT $value INSIDE ["JavaScript", "Rust", "Database", "Cloud", "DevOps", "Mobile"];
+  ASSERT string::is_url($value);
+  DEFINE FIELD OVERWRITE category ON TABLE portfolio TYPE
+      { JavaScript: object }
+    | { Rust: object }
+    | { Database: object }
+    | { Cloud: object }
+    | { DevOps: object }
+    | { Mobile: object };
 DEFINE FIELD created_at ON TABLE portfolio TYPE datetime
   DEFAULT time::now() READONLY;
 DEFINE FIELD updated_at ON TABLE portfolio TYPE datetime
@@ -71,14 +61,22 @@ DEFINE FIELD updated_at ON TABLE portfolio TYPE datetime
 -- A schema-full resume table.
 DEFINE TABLE resume SCHEMAFULL TYPE NORMAL;
 -- define some fields.
-DEFINE FIELD section ON TABLE resume TYPE string
--- Allow only these values in the array
-  ASSERT $value INSIDE ["Education", "Experience", "Achievements", "Projects", "Certifications", "Volunteer", "Publications", "Languages", "Interests", "References"];
+DEFINE FIELD OVERWRITE section ON TABLE resume TYPE
+    { Education: object }
+  | { Experience: object }
+  | { Achievements: object }
+  | { Projects: object }
+  | { Certifications: object }
+  | { Volunteer: object }
+  | { Publications: object }
+  | { Languages: object }
+  | { Interests: object }
+  | { References: object };
 DEFINE FIELD title ON TABLE resume TYPE string;
 DEFINE FIELD more_info ON TABLE resume TYPE string;
 -- I had to cast this way because the client submits a datetime string and explictly specifying datetime type gives an error
-DEFINE FIELD start_date ON TABLE resume VALUE <datetime>$value;
-DEFINE FIELD end_date ON TABLE resume VALUE IF $value IS NOT NONE { <datetime>$value } ELSE { NONE };
+DEFINE FIELD OVERWRITE start_date ON TABLE resume TYPE datetime VALUE <datetime>$value;
+DEFINE FIELD OVERWRITE end_date ON TABLE resume TYPE option<datetime> VALUE IF $value IS NOT NONE { <datetime>$value } ELSE { NONE };
 DEFINE FIELD link ON TABLE resume TYPE option<string>
   DEFAULT NONE;
 DEFINE FIELD created_at ON TABLE resume TYPE datetime
@@ -109,7 +107,7 @@ DEFINE FIELD title ON TABLE service TYPE string;
 DEFINE INDEX titleIndex ON TABLE service COLUMNS title UNIQUE;
 DEFINE FIELD description ON TABLE service TYPE string;
 DEFINE FIELD thumbnail ON TABLE service TYPE string
-  ASSERT string::is::url($value);
+  ASSERT string::is_url($value);
 --
 DEFINE FIELD created_at ON TABLE service TYPE datetime
   DEFAULT time::now() READONLY;
@@ -120,7 +118,7 @@ DEFINE FIELD updated_at ON TABLE service TYPE datetime
 -- A schema-full rate table.
 DEFINE TABLE rate SCHEMAFULL TYPE NORMAL;
 DEFINE FIELD OVERWRITE service ON TABLE rate TYPE record<service>;
-DEFINE FIELD base_rate ON TABLE rate VALUE <float>$value;
+DEFINE FIELD OVERWRITE base_rate ON TABLE rate TYPE decimal VALUE <decimal>$value;
 DEFINE FIELD hour_week ON TABLE rate TYPE int DEFAULT 40;
 DEFINE FIELD OVERWRITE currency_id ON TABLE rate TYPE record<currency_id>;
 DEFINE INDEX serviceIndex ON TABLE rate COLUMNS service UNIQUE;
@@ -134,8 +132,8 @@ DEFINE FIELD updated_at ON TABLE rate TYPE datetime
 -- DEFINE TABLE discount SCHEMAFULL TYPE NORMAL;
 -- DEFINE FIELD percentage ON TABLE discount TYPE int
 --     ASSERT 0 > $value <= 1;
--- DEFINE FIELD start_date ON TABLE discount VALUE <datetime>$value;
--- DEFINE FIELD end_date ON TABLE discount VALUE <datetime>$value;
+-- DEFINE FIELD start_date ON TABLE discount TYPE datetime VALUE <datetime>$value;
+-- DEFINE FIELD end_date ON TABLE discount TYPE option<datetime> VALUE IF $value IS NOT NONE { <datetime>$value } ELSE { NONE };
 -- DEFINE FIELD created_at ON TABLE discount TYPE datetime
 --   DEFAULT time::now() READONLY;
 -- DEFINE FIELD updated_at ON TABLE discount TYPE datetime
@@ -163,29 +161,41 @@ DEFINE TABLE OVERWRITE blog_post SCHEMAFULL TYPE NORMAL;
 DEFINE FIELD title ON TABLE blog_post TYPE string;
 DEFINE FIELD short_description ON TABLE blog_post TYPE string;
 DEFINE FIELD thumbnail ON TABLE blog_post TYPE string
-  ASSERT string::is::url($value);
+  ASSERT string::is_url($value);
 DEFINE FIELD OVERWRITE content_file ON TABLE blog_post TYPE record<file_id>;
 DEFINE FIELD content_text_only ON TABLE blog_post TYPE option<string>
     DEFAULT NONE;
 DEFINE FIELD content ON TABLE blog_post TYPE string;
-DEFINE FIELD OVERWRITE category ON TABLE blog_post TYPE string
--- Allow only these values in the array
-  ASSERT $value INSIDE ["WebDevelopment", "MobileDevelopment", "ArtificialIntelligence", "Technology", "Lifestyle", "Science", "Health", "EmbeddedSystems", "IoT", "UpCloseAndCandid", "Commentary", "CyberSecurity", "Programming"];
+DEFINE FIELD OVERWRITE category ON TABLE blog_post TYPE
+    { WebDevelopment: object }
+  | { MobileDevelopment: object }
+  | { ArtificialIntelligence: object }
+  | { Technology: object }
+  | { Lifestyle: object }
+  | { Science: object }
+  | { Health: object }
+  | { EmbeddedSystems: object }
+  | { IoT: object }
+  | { UpCloseAndCandid: object }
+  | { Commentary: object }
+  | { CyberSecurity: object }
+  | { Programming: object };
 DEFINE FIELD link ON TABLE blog_post VALUE string::slug(title);
 DEFINE INDEX blogPostIndex ON TABLE blog_post COLUMNS link UNIQUE;
-DEFINE FIELD status ON TABLE blog_post TYPE option<string>
--- Allow only these values in the array
-  ASSERT $value INSIDE ["Draft", "Published", "Archived"]
-  DEFAULT "Draft";
-DEFINE FIELD published_date ON TABLE blog_post VALUE
-  IF $value IS NOT NONE { <datetime>$value }ELSE { NONE };
+DEFINE FIELD OVERWRITE status ON TABLE blog_post TYPE
+    { Draft: object }
+  | { Published: object }
+  | { Archived: object }
+  DEFAULT { Draft: {} };
+DEFINE FIELD OVERWRITE published_date ON TABLE blog_post TYPE option<datetime> VALUE
+  IF $value IS NOT NONE { <datetime>$value } ELSE { NONE };
 DEFINE FIELD is_featured ON TABLE blog_post TYPE bool
   DEFAULT false;
 DEFINE FIELD is_premium ON TABLE blog_post TYPE bool
   DEFAULT false;
 --Full-text search
-DEFINE INDEX OVERWRITE blogContentSearchIndex ON TABLE blog_post FIELDS content_text_only SEARCH ANALYZER blog_post_search_analyzer BM25(1.2,0.75) HIGHLIGHTS;
-DEFINE INDEX blogTitleSearchIndex ON TABLE blog_post FIELDS title SEARCH ANALYZER blog_post_search_analyzer BM25(1.2,0.75) HIGHLIGHTS;
+DEFINE INDEX OVERWRITE blogContentSearchIndex ON TABLE blog_post FIELDS content_text_only FULLTEXT ANALYZER blog_post_search_analyzer BM25(1.2,0.75) HIGHLIGHTS;
+DEFINE INDEX blogTitleSearchIndex ON TABLE blog_post FIELDS title FULLTEXT ANALYZER blog_post_search_analyzer BM25(1.2,0.75) HIGHLIGHTS;
 DEFINE FIELD created_at ON TABLE blog_post TYPE datetime
   DEFAULT time::now() READONLY;
 DEFINE FIELD updated_at ON TABLE blog_post TYPE datetime
@@ -214,9 +224,14 @@ DEFINE TABLE has_reply SCHEMAFULL TYPE RELATION IN comment OUT comment;
 -- A schema-full reaction table.
 DEFINE TABLE OVERWRITE reaction SCHEMAFULL TYPE RELATION IN user_id OUT blog_post | comment;
 -- define some fields.
-DEFINE FIELD type ON TABLE reaction TYPE string
--- Allow only these values in the array
-  ASSERT $value INSIDE ["Like", "Dislike", "Love", "Haha", "Wow", "Sad", "Angry"];
+DEFINE FIELD OVERWRITE type ON TABLE reaction TYPE
+    { Like: object }
+  | { Dislike: object }
+  | { Love: object }
+  | { Haha: object }
+  | { Wow: object }
+  | { Sad: object }
+  | { Angry: object };
 DEFINE INDEX reactionIndex ON TABLE reaction COLUMNS in,out UNIQUE;
 DEFINE FIELD created_at ON TABLE reaction TYPE datetime
   DEFAULT time::now() READONLY;
@@ -227,10 +242,14 @@ DEFINE TABLE message SCHEMAFULL;
 -- define some fields.
 DEFINE FIELD sender_name ON TABLE message TYPE string;
 DEFINE FIELD sender_email ON TABLE message TYPE string
-  ASSERT string::is::email($value);
-DEFINE FIELD subject ON TABLE message TYPE string
--- Allow only these values in the array
-  ASSERT $value INSIDE ["JobOffer", "Consultation", "Feedback", "Complaint", "Suggestion", "Enquiry"];
+  ASSERT string::is_email($value);
+DEFINE FIELD OVERWRITE subject ON TABLE message TYPE
+      { JobOffer: object }
+    | { Consultation: object }
+    | { Feedback: object }
+    | { Complaint: object }
+    | { Suggestion: object }
+    | { Enquiry: object };
 DEFINE FIELD body ON TABLE message TYPE string;
 DEFINE FIELD created_at ON TABLE message TYPE datetime
   DEFAULT time::now() READONLY;
@@ -248,18 +267,21 @@ DEFINE TABLE skill SCHEMAFULL TYPE NORMAL;
 -- define some fields.
 DEFINE FIELD name ON TABLE skill TYPE string;
 DEFINE FIELD description ON TABLE skill TYPE string;
-DEFINE FIELD type ON TABLE skill TYPE string
--- Allow only these values in the array
-  ASSERT $value INSIDE ["Technical", "Soft"];
+DEFINE FIELD OVERWRITE type ON TABLE skill TYPE
+    { Technical: object }
+  | { Soft: object };
 DEFINE INDEX skillIndex ON TABLE skill COLUMNS name UNIQUE;
 DEFINE FIELD thumbnail ON TABLE skill TYPE string
-  ASSERT string::is::url($value);
-DEFINE FIELD level ON TABLE skill TYPE option<string>
--- Allow only these values in the array
-  ASSERT $value INSIDE ["Beginner", "Intermediate", "Advanced", "Expert", None]
-  DEFAULT None;
+  ASSERT string::is_url($value);
+DEFINE FIELD OVERWRITE level ON TABLE skill TYPE option<
+      { Beginner: object }
+    | { Intermediate: object }
+    | { Advanced: object }
+    | { Expert: object }
+  >
+  DEFAULT NONE;
 -- I had to cast this way because the client submits a datetime string and explictly specifying datetime type gives an error
-DEFINE FIELD start_date ON TABLE skill VALUE <datetime>$value;
+DEFINE FIELD OVERWRITE start_date ON TABLE skill TYPE datetime VALUE <datetime>$value;
 DEFINE FIELD created_at ON TABLE skill TYPE datetime
   DEFAULT time::now() READONLY;
 DEFINE FIELD updated_at ON TABLE skill TYPE datetime
@@ -284,7 +306,7 @@ DEFINE FIELD updated_at ON TABLE ratecard TYPE datetime
 DEFINE TABLE OVERWRITE service_request SCHEMAFULL TYPE NORMAL;
 DEFINE FIELD OVERWRITE supporting_docs ON TABLE service_request TYPE array<record<file_id>>;
 DEFINE FIELD description ON TABLE service_request TYPE string;
-DEFINE FIELD start_date ON TABLE service_request VALUE <datetime>$value;
+DEFINE FIELD OVERWRITE start_date ON TABLE service_request TYPE datetime VALUE <datetime>$value;
 DEFINE FIELD engagement_length ON TABLE service_request TYPE int;
 DEFINE FIELD created_at ON TABLE service_request TYPE datetime
   DEFAULT time::now() READONLY;
@@ -321,3 +343,63 @@ DEFINE FIELD updated_at ON TABLE share TYPE datetime
 -- REMOVE FIELD end_date ON TABLE service_request;
 -- REMOVE FIELD engagement_length ON TABLE service_request;
 REMOVE FIELD pandascrow_escrow_id ON TABLE service_request;
+REMOVE TABLE pandascrow_escrow_id;
+
+UPDATE portfolio SET category = { JavaScript: {} } WHERE category = 'JavaScript';
+UPDATE portfolio SET category = { Rust: {} } WHERE category = 'Rust';
+UPDATE portfolio SET category = { Database: {} } WHERE category = 'Database';
+UPDATE portfolio SET category = { Cloud: {} } WHERE category = 'Cloud';
+UPDATE portfolio SET category = { DevOps: {} } WHERE category = 'DevOps';
+UPDATE portfolio SET category = { Mobile: {} } WHERE category = 'Mobile';
+
+UPDATE resume SET section = { Education: {} } WHERE section = 'Education';
+UPDATE resume SET section = { Experience: {} } WHERE section = 'Experience';
+UPDATE resume SET section = { Achievements: {} } WHERE section = 'Achievements';
+UPDATE resume SET section = { Projects: {} } WHERE section = 'Projects';
+UPDATE resume SET section = { Certifications: {} } WHERE section = 'Certifications';
+UPDATE resume SET section = { Volunteer: {} } WHERE section = 'Volunteer';
+UPDATE resume SET section = { Publications: {} } WHERE section = 'Publications';
+UPDATE resume SET section = { Languages: {} } WHERE section = 'Languages';
+UPDATE resume SET section = { Interests: {} } WHERE section = 'Interests';
+UPDATE resume SET section = { References: {} } WHERE section = 'References';
+
+UPDATE blog_post SET category = { WebDevelopment: {} } WHERE category = 'WebDevelopment';
+UPDATE blog_post SET category = { MobileDevelopment: {} } WHERE category = 'MobileDevelopment';
+UPDATE blog_post SET category = { ArtificialIntelligence: {} } WHERE category = 'ArtificialIntelligence';
+UPDATE blog_post SET category = { Technology: {} } WHERE category = 'Technology';
+UPDATE blog_post SET category = { Lifestyle: {} } WHERE category = 'Lifestyle';
+UPDATE blog_post SET category = { Science: {} } WHERE category = 'Science';
+UPDATE blog_post SET category = { Health: {} } WHERE category = 'Health';
+UPDATE blog_post SET category = { EmbeddedSystems: {} } WHERE category = 'EmbeddedSystems';
+UPDATE blog_post SET category = { IoT: {} } WHERE category = 'IoT';
+UPDATE blog_post SET category = { UpCloseAndCandid: {} } WHERE category = 'UpCloseAndCandid';
+UPDATE blog_post SET category = { Commentary: {} } WHERE category = 'Commentary';
+UPDATE blog_post SET category = { CyberSecurity: {} } WHERE category = 'CyberSecurity';
+UPDATE blog_post SET category = { Programming: {} } WHERE category = 'Programming';
+
+UPDATE blog_post SET status = { Draft: {} } WHERE status = 'Draft' OR status = NONE;
+UPDATE blog_post SET status = { Published: {} } WHERE status = 'Published';
+UPDATE blog_post SET status = { Archived: {} } WHERE status = 'Archived';
+
+UPDATE reaction SET type = { Like: {} } WHERE type = 'Like';
+UPDATE reaction SET type = { Dislike: {} } WHERE type = 'Dislike';
+UPDATE reaction SET type = { Love: {} } WHERE type = 'Love';
+UPDATE reaction SET type = { Haha: {} } WHERE type = 'Haha';
+UPDATE reaction SET type = { Wow: {} } WHERE type = 'Wow';
+UPDATE reaction SET type = { Sad: {} } WHERE type = 'Sad';
+UPDATE reaction SET type = { Angry: {} } WHERE type = 'Angry';
+
+UPDATE message SET subject = { JobOffer: {} } WHERE subject = 'JobOffer';
+UPDATE message SET subject = { Consultation: {} } WHERE subject = 'Consultation';
+UPDATE message SET subject = { Feedback: {} } WHERE subject = 'Feedback';
+UPDATE message SET subject = { Complaint: {} } WHERE subject = 'Complaint';
+UPDATE message SET subject = { Suggestion: {} } WHERE subject = 'Suggestion';
+UPDATE message SET subject = { Enquiry: {} } WHERE subject = 'Enquiry';
+
+UPDATE skill SET type = { Technical: {} } WHERE type = 'Technical';
+UPDATE skill SET type = { Soft: {} } WHERE type = 'Soft';
+
+UPDATE skill SET level = { Beginner: {} } WHERE level = 'Beginner';
+UPDATE skill SET level = { Intermediate: {} } WHERE level = 'Intermediate';
+UPDATE skill SET level = { Advanced: {} } WHERE level = 'Advanced';
+UPDATE skill SET level = { Expert: {} } WHERE level = 'Expert';
