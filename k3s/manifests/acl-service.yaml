@@ -31,7 +31,7 @@ spec:
     spec:
       containers:
         - name: surrealdb
-          image: surrealdb/surrealdb:v2.2.1
+          image: surrealdb/surrealdb:v3.0.5
           securityContext:
             runAsUser: 0
           args:
@@ -45,7 +45,7 @@ spec:
               "$(DATABASE_PASSWORD)",
               "--bind",
               "0.0.0.0:8000",
-              "surrealkv:/acl-db-data/acl.db",
+              "surrealkv:/acl-db-data/aclv3.db",
             ]
           ports:
             - containerPort: 8000

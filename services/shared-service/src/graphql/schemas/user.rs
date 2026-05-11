@@ -1,19 +1,19 @@
 use async_graphql::{ComplexObject, Enum, InputObject, SimpleObject};
-use chrono::{DateTime, Datelike, NaiveDate, Utc};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use surrealdb::RecordId;
+use surrealdb::types::{RecordId, RecordIdKey, SurrealValue};
 
 use super::blog::BlogPost;
 
-#[derive(Clone, Debug, Serialize, Deserialize, InputObject)]
+#[derive(Clone, Debug, Serialize, Deserialize, InputObject, SurrealValue)]
 pub struct UserProfessionalInfoInput {
     pub description: String,
     pub active: bool,
     pub occupation: String,
-    pub start_date: String,
+    pub start_date: DateTime<Utc>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
+#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject, SurrealValue)]
 #[graphql(complex)]
 pub struct UserProfessionalInfo {
     #[graphql(skip)]
@@ -21,29 +21,29 @@ pub struct UserProfessionalInfo {
     pub description: String,
     pub active: bool,
     pub occupation: String,
-    pub start_date: String,
+    pub start_date: DateTime<Utc>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, InputObject)]
+#[derive(Clone, Debug, Serialize, Deserialize, InputObject, SurrealValue)]
 pub struct UserPortfolioInput {
     pub title: String,
     pub description: String,
-    pub start_date: String,
-    pub end_date: Option<String>,
+    pub start_date: DateTime<Utc>,
+    pub end_date: Option<DateTime<Utc>>,
     pub link: String,
     pub category: UserPortfolioCategory,
     pub thumbnail: String,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
+#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject, SurrealValue)]
 #[graphql(complex)]
 pub struct UserPortfolio {
     #[graphql(skip)]
     pub id: RecordId,
     pub title: String,
     pub description: String,
-    pub start_date: String,
-    pub end_date: Option<String>,
+    pub start_date: DateTime<Utc>,
+    pub end_date: Option<DateTime<Utc>>,
     pub link: String,
     pub category: UserPortfolioCategory,
     pub thumbnail: String,
@@ -51,7 +51,7 @@ pub struct UserPortfolio {
 }
 
 // enum for UserPortfolio category
-#[derive(Clone, Debug, Serialize, Deserialize, Enum, Copy, Eq, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, Enum, Copy, Eq, PartialEq, SurrealValue)]
 pub enum UserPortfolioCategory {
     #[graphql(name = "JavaScript")]
     JavaScript,
@@ -69,58 +69,45 @@ pub enum UserPortfolioCategory {
 
 #[ComplexObject]
 impl UserPortfolio {
-    async fn id(&self) -> String {
-        self.id.key().to_string()
+    async fn id(&self) -> Option<String> {
+        match &self.id.key {
+            RecordIdKey::String(s) => Some(s.clone()),
+            _ => None,
+        }
     }
 
     async fn years_of_experience(&self) -> Option<u32> {
-        // calculate years of experience from &self.start_date
-        let parsed_start_date = DateTime::parse_from_rfc3339(&self.start_date).ok()?;
-        let start_date_ymd = NaiveDate::from_ymd_opt(
-            parsed_start_date.year(),
-            parsed_start_date.month(),
-            parsed_start_date.day(),
-        )?;
+        let start_date = self.start_date.date_naive();
 
-        match &self.end_date {
-            Some(end_date) => {
-                let parsed_end_date = DateTime::parse_from_rfc3339(end_date).ok()?;
+        let end_date = self
+            .end_date
+            .as_ref()
+            .map(|date| date.date_naive())
+            .unwrap_or_else(|| Utc::now().date_naive());
 
-                let end_date_ymd = NaiveDate::from_ymd_opt(
-                    parsed_end_date.year(),
-                    parsed_end_date.month(),
-                    parsed_end_date.day(),
-                )?;
-
-                Some(end_date_ymd.years_since(start_date_ymd)?)
-            }
-            None => {
-                let today = Utc::now().date_naive();
-                Some(today.years_since(start_date_ymd)?)
-            }
-        }
+        end_date.years_since(start_date)
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, InputObject)]
+#[derive(Clone, Debug, Serialize, Deserialize, InputObject, SurrealValue)]
 pub struct UserResumeInput {
     pub title: String,
     pub more_info: Option<String>,
-    pub start_date: String,
-    pub end_date: Option<String>,
+    pub start_date: DateTime<Utc>,
+    pub end_date: Option<DateTime<Utc>>,
     pub link: Option<String>,
     pub section: UserResumeSection,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
+#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject, SurrealValue)]
 #[graphql(complex)]
 pub struct UserResume {
     #[graphql(skip)]
     pub id: RecordId,
     pub title: String,
     pub more_info: Option<String>,
-    pub start_date: String,
-    pub end_date: Option<String>,
+    pub start_date: DateTime<Utc>,
+    pub end_date: Option<DateTime<Utc>>,
     pub link: Option<String>,
     pub section: UserResumeSection,
     pub achievements: Vec<ResumeAchievement>,
@@ -128,40 +115,28 @@ pub struct UserResume {
 
 #[ComplexObject]
 impl UserResume {
-    async fn id(&self) -> String {
-        self.id.key().to_string()
+    async fn id(&self) -> Option<String> {
+        match &self.id.key {
+            RecordIdKey::String(s) => Some(s.clone()),
+            _ => None,
+        }
     }
 
     async fn years_of_experience(&self) -> Option<u32> {
         // TODO: factor in months, currently only years e.g. 1 year 6 months
-        // calculate years of experience from &self.start_date
-        let parsed_start_date = DateTime::parse_from_rfc3339(&self.start_date).ok()?;
-        let start_date_ymd = NaiveDate::from_ymd_opt(
-            parsed_start_date.year(),
-            parsed_start_date.month(),
-            parsed_start_date.day(),
-        )?;
+        let start_date = self.start_date.date_naive();
 
-        match &self.end_date {
-            Some(end_date) => {
-                let parsed_end_date = DateTime::parse_from_rfc3339(end_date).ok()?;
-                let end_date_ymd = NaiveDate::from_ymd_opt(
-                    parsed_end_date.year(),
-                    parsed_end_date.month(),
-                    parsed_end_date.day(),
-                )?;
+        let end_date = self
+            .end_date
+            .as_ref()
+            .map(|date| date.date_naive())
+            .unwrap_or_else(|| Utc::now().date_naive());
 
-                Some(end_date_ymd.years_since(start_date_ymd)?)
-            }
-            None => {
-                let today = Utc::now().date_naive();
-                Some(today.years_since(start_date_ymd)?)
-            }
-        }
+        end_date.years_since(start_date)
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, Enum, Copy, Eq, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, Enum, Copy, Eq, PartialEq, SurrealValue)]
 pub enum UserResumeSection {
     #[graphql(name = "Education")]
     Education,
@@ -185,7 +160,7 @@ pub enum UserResumeSection {
     References,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
+#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject, SurrealValue)]
 #[graphql(complex)]
 pub struct ResumeAchievement {
     #[graphql(skip)]
@@ -195,23 +170,26 @@ pub struct ResumeAchievement {
 
 #[ComplexObject]
 impl ResumeAchievement {
-    async fn id(&self) -> String {
-        self.id.key().to_string()
+    async fn id(&self) -> Option<String> {
+        match &self.id.key {
+            RecordIdKey::String(s) => Some(s.clone()),
+            _ => None,
+        }
     }
 }
 
 // UserSkill
-#[derive(Clone, Debug, Serialize, Deserialize, InputObject)]
+#[derive(Clone, Debug, Serialize, Deserialize, InputObject, SurrealValue)]
 pub struct UserSkillInput {
     pub thumbnail: String,
     pub name: String,
     pub description: String,
     pub level: Option<UserSkillLevel>,
     pub r#type: UserSkillType,
-    pub start_date: String,
+    pub start_date: DateTime<Utc>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
+#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject, SurrealValue)]
 #[graphql(complex)]
 pub struct UserSkill {
     #[graphql(skip)]
@@ -221,32 +199,29 @@ pub struct UserSkill {
     pub description: String,
     pub level: Option<UserSkillLevel>,
     pub r#type: UserSkillType,
-    pub start_date: String,
+    pub start_date: DateTime<Utc>,
 }
 
 #[ComplexObject]
 impl UserSkill {
-    async fn id(&self) -> String {
-        self.id.key().to_string()
+    async fn id(&self) -> Option<String> {
+        match &self.id.key {
+            RecordIdKey::String(s) => Some(s.clone()),
+            _ => None,
+        }
     }
 
     async fn years_of_experience(&self) -> Option<u32> {
         // TODO: factor in months, currently only years e.g. 1 year 6 months
-        // calculate years of experience from &self.start_date
-        let parsed_start_date = DateTime::parse_from_rfc3339(&self.start_date).ok()?;
-        let start_date_ymd = NaiveDate::from_ymd_opt(
-            parsed_start_date.year(),
-            parsed_start_date.month(),
-            parsed_start_date.day(),
-        )?;
-
+        let start_date = self.start_date.date_naive();
         let today = Utc::now().date_naive();
-        Some(today.years_since(start_date_ymd)?)
+
+        today.years_since(start_date)
     }
 }
 
 // UserSkillType enum
-#[derive(Clone, Debug, Serialize, Deserialize, Enum, Copy, Eq, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, Enum, Copy, Eq, PartialEq, SurrealValue)]
 pub enum UserSkillType {
     #[graphql(name = "Technical")]
     Technical,
@@ -255,7 +230,7 @@ pub enum UserSkillType {
 }
 
 // UserSkillLevel enum
-#[derive(Clone, Debug, Serialize, Deserialize, Enum, Copy, Eq, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, Enum, Copy, Eq, PartialEq, SurrealValue)]
 pub enum UserSkillLevel {
     #[graphql(name = "Beginner")]
     Beginner,
@@ -268,14 +243,14 @@ pub enum UserSkillLevel {
 }
 
 // UserService
-#[derive(Clone, Debug, Serialize, Deserialize, InputObject)]
+#[derive(Clone, Debug, Serialize, Deserialize, InputObject, SurrealValue)]
 pub struct UserServiceInput {
     pub title: String,
     pub description: String,
     pub thumbnail: String,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
+#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject, SurrealValue)]
 #[graphql(complex)]
 pub struct UserService {
     #[graphql(skip)]
@@ -287,17 +262,20 @@ pub struct UserService {
 
 #[ComplexObject]
 impl UserService {
-    async fn id(&self) -> String {
-        self.id.key().to_string()
+    async fn id(&self) -> Option<String> {
+        match &self.id.key {
+            RecordIdKey::String(s) => Some(s.clone()),
+            _ => None,
+        }
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
+#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject, SurrealValue)]
 pub struct UserResources {
     pub blog_posts: Vec<BlogPost>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
+#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject, SurrealValue)]
 pub struct PublicSiteResources {
     pub blog_posts: Vec<BlogPost>,
     pub professional_info: Vec<UserProfessionalInfo>,
@@ -309,27 +287,18 @@ pub struct PublicSiteResources {
 
 #[ComplexObject]
 impl UserProfessionalInfo {
-    async fn id(&self) -> String {
-        self.id.key().to_string()
+    async fn id(&self) -> Option<String> {
+        match &self.id.key {
+            RecordIdKey::String(s) => Some(s.clone()),
+            _ => None,
+        }
     }
 
     async fn years_of_experience(&self) -> Option<u32> {
-        // calculate years of experience from &self.start_date
-        let parsed_start_date = DateTime::parse_from_rfc3339(&self.start_date).ok()?;
-        let start_date_ymd = NaiveDate::from_ymd_opt(
-            parsed_start_date.year(),
-            parsed_start_date.month(),
-            parsed_start_date.day(),
-        )?;
-
+        // TODO: factor in months, currently only years e.g. 1 year 6 months
+        let start_date = self.start_date.date_naive();
         let today = Utc::now().date_naive();
-        Some(today.years_since(start_date_ymd)?)
-    }
-}
 
-#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
-pub struct User {
-    #[graphql(skip)]
-    pub id: RecordId,
-    pub user_id: String,
+        today.years_since(start_date)
+    }
 }

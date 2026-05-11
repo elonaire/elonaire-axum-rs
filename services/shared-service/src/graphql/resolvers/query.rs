@@ -4,7 +4,7 @@ use async_graphql::{Context, Object};
 use axum::Extension;
 use hyper::{HeaderMap, StatusCode};
 
-use surrealdb::{engine::remote::ws::Client as SurrealClient, RecordId, Surreal};
+use surrealdb::{engine::remote::ws::Client as SurrealClient, types::RecordId, Surreal};
 
 use crate::{
     graphql::schemas::{
@@ -24,7 +24,7 @@ use lib::{
         api_response::synthesize_graphql_response,
         custom_error::ExtendedError,
         grpc::confirm_authorization,
-        models::{AdminPrivilege, AuthorizationConstraint, ForeignKey, UserId},
+        models::{AuthorizationConstraint, ForeignKey, UserId},
         serialization::convert_float_to_string,
     },
 };
@@ -144,12 +144,19 @@ impl Query {
             })?;
 
         let mut query_results = db
-            .query("SELECT *, (<-wrote<-user_id)[0].* AS author, (SELECT *, (<-wrote<-user_id)[0][*] AS author, array::len(->has_reply) AS reply_count FROM ->has_comment->comment) AS comments FROM blog_post WHERE status = 'Published' FETCH content_file")
-            .query("SELECT * FROM professional_details WHERE active = true")
-            .query("SELECT *, ->uses_skill->skill[*] AS skills FROM portfolio")
-            .query("SELECT *, ->achievement[*] AS achievements FROM resume ORDER BY start_date DESC")
-            .query("SELECT * FROM skill")
-            .query("SELECT * FROM service")
+            .query("
+                (SELECT *, (<-wrote<-user_id)[0].* AS author, (SELECT *, (<-wrote<-user_id)[0][*] AS author, array::len(->has_reply) AS reply_count FROM ->has_comment->comment) AS comments FROM blog_post WHERE status = 'Published' FETCH content_file);
+
+                (SELECT * FROM professional_details WHERE active = true);
+
+                (SELECT *, ->uses_skill->skill[*] AS skills FROM portfolio);
+
+                (SELECT *, ->achievement[*] AS achievements FROM resume ORDER BY start_date DESC);
+
+                (SELECT * FROM skill);
+
+                (SELECT * FROM service);
+                ")
             .await
             .map_err(|e| {
                 tracing::error!("DB Query error: {}", e);
@@ -246,12 +253,10 @@ impl Query {
         let mut blog_post_db_query = db
             .query(
                 "
-                BEGIN TRANSACTION;
-                LET $blog_id = type::thing('blog_post', $blog_id_or_slug);
+                LET $blog_id = type::record('blog_post', $blog_id_or_slug);
                 LET $blog_post = (SELECT *, (<-wrote<-user_id)[0][*] AS author, (SELECT *, (<-wrote<-user_id)[0][*] AS author, array::len(->has_reply) AS reply_count, array::len(<-reaction) AS reaction_count, (<-(reaction WHERE <-(user_id WHERE user_id = $user_id)))[0][*] AS current_user_reaction FROM ->has_comment->comment ORDER BY created_at
                 ) AS comments, array::len(<-reaction) AS reaction_count, (<-(reaction WHERE <-(user_id WHERE user_id = $user_id)))[0][*] AS current_user_reaction, array::len(<-bookmark) AS bookmarks_count, array::len(<-share) AS shares_count, array::len(<-(bookmark WHERE <-(user_id WHERE user_id = $user_id))) > 0 AS current_user_bookmarked FROM ONLY blog_post WHERE id = $blog_id_or_slug OR link = $blog_id_or_slug LIMIT 1 FETCH content_file);
                 RETURN $blog_post;
-                COMMIT TRANSACTION;
                 "
             )
             .bind(("blog_id_or_slug", blog_id_or_slug))
@@ -266,7 +271,7 @@ impl Query {
                 .build()
             })?;
 
-        let blog_post: Option<BlogPost> = blog_post_db_query.take(0)?;
+        let blog_post: Option<BlogPost> = blog_post_db_query.take(2)?;
 
         match blog_post {
             Some(mut blog_post) => {
@@ -346,14 +351,13 @@ impl Query {
 
         let service_record_ids = service_ids
             .iter()
-            .map(|service_id| RecordId::from_table_key("service", service_id))
+            .map(|service_id| RecordId::new("service", service_id.to_owned()))
             .collect::<Vec<RecordId>>();
 
         // fetch all messages in DB
         let mut query_results = db
             .query(
                 r#"
-                BEGIN TRANSACTION;
                 LET $billing_rates = (SELECT service.title AS service_title, service.id AS service_id, base_rate AS hourly_rate, base_rate * hour_week AS weekly_rate, base_rate * hour_week * 4 AS monthly_rate, base_rate * hour_week * 4 * 12 AS annual_rate, base_rate * hour_week * 2 AS milestone_rate FROM rate WHERE service.id IN $service_record_ids GROUP BY service_id);
 
                 LET $rates_count = array::len($billing_rates);
@@ -379,8 +383,6 @@ impl Query {
                     LET $hourly_rates = $billing_rates.map(|$billing_rate| $billing_rate.hourly_rate);
                     math::sum($hourly_rates)*$bundle_discount
                 };
-
-                COMMIT TRANSACTION;
                 "#
             )
             .bind(("billing_interval", billing_interval))
@@ -391,7 +393,7 @@ impl Query {
                 ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
             })?;
 
-        let response: Option<f64> = query_results.take(0).map_err(|e| {
+        let response: Option<f64> = query_results.take(3).map_err(|e| {
             tracing::error!("billing rate deserialization error: {}", e);
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
@@ -505,7 +507,6 @@ impl Query {
 
         let authorization_constraint = AuthorizationConstraint {
             permissions: vec!["read:service_request".into()],
-            privilege: AdminPrivilege::Admin,
         };
         let authorized =
             confirm_authorization(authenticated_ref, &authorization_constraint, headers)
