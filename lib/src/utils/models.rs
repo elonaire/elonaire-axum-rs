@@ -1,14 +1,14 @@
 use std::sync::Arc;
+use surrealdb::types::{RecordId, RecordIdKey, SurrealValue};
 use tokio::sync::Mutex;
 
 use async_graphql::{ComplexObject, Enum, InputObject, SimpleObject};
 use axum::http::{HeaderName, HeaderValue};
 use hyper::HeaderMap;
 use serde::{Deserialize, Serialize};
-use surrealdb::RecordId;
 use tonic::metadata::MetadataMap;
 
-#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
+#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject, SurrealValue)]
 pub struct AuthStatus {
     pub is_auth: bool,
     pub sub: String,
@@ -17,21 +17,21 @@ pub struct AuthStatus {
     pub current_role_permissions: Vec<String>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, SurrealValue)]
 pub struct ForeignKey {
     pub table: String,
     pub column: String,
     pub foreign_key: String,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
+#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject, SurrealValue)]
 pub struct UserId {
     #[graphql(skip)]
     pub id: RecordId,
     pub user_id: String,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
+#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject, SurrealValue)]
 #[graphql(complex)]
 pub struct CurrencyId {
     #[graphql(skip)]
@@ -41,12 +41,15 @@ pub struct CurrencyId {
 
 #[ComplexObject]
 impl CurrencyId {
-    async fn id(&self) -> String {
-        self.id.key().to_string()
+    async fn id(&self) -> Option<String> {
+        match &self.id.key {
+            RecordIdKey::String(s) => Some(s.clone()),
+            _ => None,
+        }
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
+#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject, SurrealValue)]
 #[graphql(complex)]
 pub struct UploadedFileId {
     #[graphql(skip)]
@@ -56,17 +59,20 @@ pub struct UploadedFileId {
 
 #[ComplexObject]
 impl UploadedFileId {
-    async fn id(&self) -> String {
-        self.id.key().to_string()
+    async fn id(&self) -> Option<String> {
+        match &self.id.key {
+            RecordIdKey::String(s) => Some(s.clone()),
+            _ => None,
+        }
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, SurrealValue)]
 pub struct AuthorizationConstraint {
     pub permissions: Vec<String>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
+#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject, SurrealValue)]
 pub struct CreateFileInfo {
     pub file_name: String,
     pub content: String,
@@ -74,7 +80,7 @@ pub struct CreateFileInfo {
     pub is_free: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Enum, Copy, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Enum, Copy, Eq, SurrealValue)]
 pub enum AllowedCreateFileExtension {
     #[graphql(name = "Markdown")]
     Markdown,
@@ -112,21 +118,21 @@ impl From<AllowedCreateFileExtension> for i32 {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct EmailMQTTPayload<'a> {
-    pub recipient: &'a str,
-    pub subject: &'a str,
-    pub title: &'a str,
+#[derive(Serialize, Deserialize, Debug, SurrealValue)]
+pub struct EmailMQTTPayload {
+    pub recipient: String,
+    pub subject: String,
+    pub title: String,
     pub template: String,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
+#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject, SurrealValue)]
 pub struct InitializePaymentResponse {
     pub status: bool,
     pub message: String,
     pub data: InitializePaymentResponseData,
 }
-#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
+#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject, SurrealValue)]
 pub struct InitializePaymentResponseData {
     #[serde(rename = "authorization_url")]
     pub authorization_url: String,
@@ -135,7 +141,9 @@ pub struct InitializePaymentResponseData {
     pub reference: String,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject, InputObject, Default)]
+#[derive(
+    Clone, Debug, Serialize, Deserialize, SimpleObject, InputObject, Default, SurrealValue,
+)]
 #[graphql(input_name = "UserPaymentDetailsInput")]
 /// `reference` - a unique reference for the payment transaction
 ///
@@ -150,7 +158,9 @@ pub struct UserPaymentDetails {
     pub metadata: PaymentDetailsMetadata,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject, InputObject, Default)]
+#[derive(
+    Clone, Debug, Serialize, Deserialize, SimpleObject, InputObject, Default, SurrealValue,
+)]
 pub struct PaymentDetailsMetadata {
     pub resource: String,
 }
@@ -209,7 +219,7 @@ pub struct ApiResponse<T> {
     metadata: ApiResponseMetadata,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[derive(Clone, Debug, Serialize, Deserialize, Default, SurrealValue)]
 pub struct ApiResponseMetadata {
     request_id: String,
     new_access_token: Option<String>,

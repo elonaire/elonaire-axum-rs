@@ -16,7 +16,7 @@ use lib::{
     integration::foreign_key::add_foreign_key_if_not_exists,
     middleware::auth::graphql::confirm_authentication, utils::custom_error::ExtendedError,
 };
-use surrealdb::RecordId;
+use surrealdb::types::{RecordId, RecordIdKey};
 use surrealdb::{engine::remote::ws::Client as SurrealClient, Surreal};
 
 use crate::graphql::schemas::shared::{
@@ -26,8 +26,6 @@ use crate::graphql::schemas::shared::{
 };
 use crate::graphql::schemas::user::{UserProfessionalInfo, UserProfessionalInfoInput};
 use crate::graphql::schemas::{blog, shared, user};
-
-// const CHUNK_SIZE: u64 = 1024 * 1024 * 5; // 5MB
 
 pub struct Mutation;
 
@@ -87,6 +85,8 @@ impl Mutation {
             )
             .build());
         }
+
+        tracing::debug!("professional_details: {:?}", professional_details);
 
         let mut database_transaction = db
             .query(
@@ -272,7 +272,7 @@ impl Mutation {
                 LET $portfolio_item = (SELECT VALUE id FROM ONLY (CREATE portfolio CONTENT $portfolio_item_input RETURN AFTER) LIMIT 1);
 
                 FOR $skill IN $skills {
-                    LET $skill = type::thing('skill', $skill);
+                    LET $skill = type::record('skill', $skill);
 
                     RELATE $portfolio_item -> uses_skill -> $skill;
                 };
@@ -294,7 +294,7 @@ impl Mutation {
                 .build()
             })?;
 
-        let response: Option<user::UserPortfolio> = database_transaction.take(0).map_err(|e| {
+        let response: Option<user::UserPortfolio> = database_transaction.take(4).map_err(|e| {
             tracing::error!("Deserialization Error: {:?}", e);
 
             ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
@@ -401,7 +401,7 @@ impl Mutation {
                 .build()
             })?;
 
-        let response: Option<user::UserResume> = database_transaction.take(0).map_err(|e| {
+        let response: Option<user::UserResume> = database_transaction.take(4).map_err(|e| {
             tracing::error!("Deserialization Error: {:?}", e);
 
             ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
@@ -606,7 +606,7 @@ impl Mutation {
             .build()
         })?;
 
-        blog_post.content_file = Some(RecordId::from(added_file.id));
+        blog_post.content_file = Some(added_file.id);
         let content_stripped_tags =
             (from_read(blog_post.content.as_bytes(), usize::MAX).map_err(|e| {
                 tracing::error!("Failed to extract text from HTML: {e:?}");
@@ -644,7 +644,7 @@ impl Mutation {
                 Error::new("Internal Server Error")
             })?;
 
-        let response: Option<blog::BlogPost> = database_transaction.take(0).map_err(|e| {
+        let response: Option<blog::BlogPost> = database_transaction.take(6).map_err(|e| {
             tracing::error!("Deserialization Error: {:?}", e);
 
             ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
@@ -715,7 +715,7 @@ impl Mutation {
             -- Get the user
             LET $user = (SELECT VALUE id FROM ONLY type::table($user_table) WHERE user_id = $user_id LIMIT 1);
             -- Get the blog post
-            LET $blog_post = (SELECT VALUE id FROM ONLY type::table($blog_table) WHERE id = type::thing($blog_post_id) LIMIT 1);
+            LET $blog_post = (SELECT VALUE id FROM ONLY type::table($blog_table) WHERE id = type::record($blog_post_id) LIMIT 1);
             -- Create comment
             LET $blog_comment = CREATE comment CONTENT $blog_comment_input;
             LET $blog_comment_id = (SELECT VALUE id FROM $blog_comment);
@@ -744,7 +744,7 @@ impl Mutation {
             .build()
         })?;
 
-        let response: Option<blog::BlogComment> = database_transaction.take(0).map_err(|e| {
+        let response: Option<blog::BlogComment> = database_transaction.take(7).map_err(|e| {
             tracing::error!("Deserialization Error: {:?}", e);
 
             ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
@@ -812,7 +812,7 @@ impl Mutation {
             "
             BEGIN TRANSACTION;
             -- Get the user, parent comment and blog post
-            LET $parent_comment = (SELECT VALUE id FROM ONLY type::table($comment_table) WHERE id = type::thing($comment_id) LIMIT 1);
+            LET $parent_comment = (SELECT VALUE id FROM ONLY type::table($comment_table) WHERE id = type::record($comment_id) LIMIT 1);
             LET $user = (SELECT VALUE id FROM ONLY type::table($user_table) WHERE user_id = $user_id LIMIT 1);
 
             -- Create comment reply
@@ -843,7 +843,7 @@ impl Mutation {
             .build()
         })?;
 
-        let response: Option<blog::BlogComment> = database_transaction.take(0).map_err(|e| {
+        let response: Option<blog::BlogComment> = database_transaction.take(7).map_err(|e| {
             tracing::error!("Deserialization Error: {:?}", e);
 
             ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
@@ -911,10 +911,8 @@ impl Mutation {
             "
             BEGIN TRANSACTION;
             LET $user = (SELECT VALUE id FROM ONLY type::table($user_table) WHERE user_id = $user_id LIMIT 1);
-            LET $blog_post = type::thing('blog_post', $blog_post_id);
-            IF !$blog_post.exists() {
-                THROW 'Invalid Input';
-            };
+            LET $blog_post = type::record('blog_post', $blog_post_id);
+
             LET $existing_reaction = (SELECT VALUE id FROM ONLY reaction WHERE ->(blog_post WHERE id = $blog_post) AND <-(user_id WHERE id = $user) LIMIT 1);
             LET $reaction = IF $existing_reaction != NONE
            	{ (UPDATE $existing_reaction MERGE $reaction_input)[0] }
@@ -941,7 +939,7 @@ impl Mutation {
             .build()
         })?;
 
-        let response: Option<shared::Reaction> = database_transaction.take(0).map_err(|e| {
+        let response: Option<shared::Reaction> = database_transaction.take(5).map_err(|e| {
             tracing::error!("Deserialization Error: {:?}", e);
 
             ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
@@ -1009,7 +1007,7 @@ impl Mutation {
             "
             BEGIN TRANSACTION;
             LET $user = (SELECT VALUE id FROM ONLY type::table($user_table) WHERE user_id = $user_id LIMIT 1);
-            LET $comment = (SELECT VALUE id FROM ONLY type::table($comment_table) WHERE id = type::thing('comment', $comment_id) LIMIT 1);
+            LET $comment = (SELECT VALUE id FROM ONLY type::table($comment_table) WHERE id = type::record('comment', $comment_id) LIMIT 1);
             LET $existing_reaction = (SELECT VALUE id FROM ONLY reaction WHERE ->(comment WHERE id = $comment) AND <-(user_id WHERE id = $user) LIMIT 1);
             LET $reaction = IF $existing_reaction != NONE
            	{ (UPDATE $existing_reaction MERGE $reaction_input)[0] }
@@ -1037,7 +1035,7 @@ impl Mutation {
             .build()
         })?;
 
-        let response: Option<shared::Reaction> = database_transaction.take(0).map_err(|e| {
+        let response: Option<shared::Reaction> = database_transaction.take(5).map_err(|e| {
             tracing::error!("Deserialization Error: {:?}", e);
 
             ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
@@ -1218,7 +1216,7 @@ impl Mutation {
                 LET $created_ratecard_id = (SELECT VALUE id FROM $created_ratecard);
 
                 FOR $service IN $ratecard_input_metadata.service_ids {
-                    LET $service_record = type::thing('service', $service);
+                    LET $service_record = type::record('service', $service);
                    	RELATE $created_ratecard_id -> contains -> $service_record;
                 };
 
@@ -1236,7 +1234,7 @@ impl Mutation {
                 ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
             })?;
 
-        let response: Option<Ratecard> = database_transaction.take(0).map_err(|e| {
+        let response: Option<Ratecard> = database_transaction.take(5).map_err(|e| {
             tracing::error!("Deserialization Error: {:?}", e);
 
             ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
@@ -1345,7 +1343,7 @@ impl Mutation {
                 LET $created_service_request_id = (SELECT VALUE id FROM ONLY $created_service_request LIMIT 1);
 
                 FOR $service IN $service_request_input_metadata.service_ids {
-                    LET $service_record = type::thing('service', $service);
+                    LET $service_record = type::record('service', $service);
                    	RELATE $created_service_request_id -> contains -> $service_record;
                 };
                 RETURN (SELECT * FROM ONLY $created_service_request_id FETCH supporting_docs, pandascrow_escrow_id);
@@ -1364,7 +1362,7 @@ impl Mutation {
                 ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
             })?;
 
-        let response: Option<ServiceRequest> = database_transaction.take(0).map_err(|e| {
+        let response: Option<ServiceRequest> = database_transaction.take(4).map_err(|e| {
             tracing::error!("Deserialization Error: {:?}", e);
 
             ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
@@ -1463,9 +1461,9 @@ impl Mutation {
             .build());
         }
 
-        service_rate_input.service = Some(RecordId::from_table_key(
+        service_rate_input.service = Some(RecordId::new(
             "service",
-            &service_rate_input_metadata.service_id,
+            service_rate_input_metadata.service_id.clone(),
         ));
         service_rate_input.currency_id = Some(currency_added.unwrap().id);
 
@@ -1490,7 +1488,7 @@ impl Mutation {
                 ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
             })?;
 
-        let response: Option<ServiceRate> = database_transaction.take(0).map_err(|e| {
+        let response: Option<ServiceRate> = database_transaction.take(4).map_err(|e| {
             tracing::error!("Deserialization Error: {:?}", e);
 
             ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
@@ -1537,27 +1535,26 @@ impl Mutation {
             foreign_key: authenticated_ref.sub.to_owned(),
         };
 
-        let added_id = add_foreign_key_if_not_exists::<
+        let Some(added_id) = add_foreign_key_if_not_exists::<
             Extension<Arc<Surreal<SurrealClient>>>,
             UserId,
         >(db, user_fk)
-        .await;
-
-        if added_id.is_none() {
+        .await
+        else {
             tracing::error!("Failed to add user_id");
             return Err(ExtendedError::new(
                 "Something went wrong",
                 StatusCode::INTERNAL_SERVER_ERROR.as_str(),
             )
             .build());
-        }
+        };
 
         let mut database_transaction = db
             .query(
                 "
                 BEGIN TRANSACTION;
-                LET $user = type::thing('user_id', $user_id);
-                LET $blog_post = type::thing('blog_post', $blog_post_id);
+                LET $user = type::record('user_id', $user_id);
+                LET $blog_post = type::record('blog_post', $blog_post_id);
 
                 LET $existing_bookmark = (SELECT VALUE id FROM ONLY bookmark WHERE <-(user_id WHERE id = $user) AND ->(blog_post WHERE id = $blog_post) LIMIT 1);
 
@@ -1572,7 +1569,10 @@ impl Mutation {
                 COMMIT TRANSACTION;
             ",
             )
-            .bind(("user_id", added_id.unwrap().id.key().to_string()))
+            .bind(("user_id", match &added_id.id.key {
+                RecordIdKey::String(s) => Some(s.clone()),
+                _ => None,
+            }))
             .bind(("blog_post_id", blog_post_id))
             .await
             .map_err(|e| {
@@ -1581,7 +1581,7 @@ impl Mutation {
                 ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
             })?;
 
-        let response: Option<bool> = database_transaction.take(0).map_err(|e| {
+        let response: Option<bool> = database_transaction.take(5).map_err(|e| {
             tracing::error!("Deserialization Error: {:?}", e);
 
             ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
@@ -1628,34 +1628,36 @@ impl Mutation {
             foreign_key: user_id.clone(),
         };
 
-        let added_id = add_foreign_key_if_not_exists::<
+        let Some(added_id) = add_foreign_key_if_not_exists::<
             Extension<Arc<Surreal<SurrealClient>>>,
             UserId,
         >(db, user_fk)
-        .await;
-
-        if added_id.is_none() {
+        .await
+        else {
             tracing::error!("Failed to add user_id");
             return Err(ExtendedError::new(
                 "Something went wrong",
                 StatusCode::INTERNAL_SERVER_ERROR.as_str(),
             )
             .build());
-        }
+        };
 
         let mut database_transaction = db
             .query(
                 "
                 BEGIN TRANSACTION;
-                LET $user = type::thing('user_id', $user_id);
-                LET $blog_post = type::thing('blog_post', $blog_post_id);
+                LET $user = type::record('user_id', $user_id);
+                LET $blog_post = type::record('blog_post', $blog_post_id);
                 RELATE $user -> share -> $blog_post;
                 LET $total = (SELECT count() AS total FROM share WHERE ->(blog_post WHERE id = $blog_post) GROUP ALL)[0]['total'];
                 RETURN $total;
                 COMMIT TRANSACTION;
             ",
             )
-            .bind(("user_id", added_id.unwrap().id.key().to_string()))
+            .bind(("user_id", match &added_id.id.key {
+                RecordIdKey::String(s) => Some(s.clone()),
+                _ => None,
+            }))
             .bind(("blog_post_id", blog_post_id))
             .await
             .map_err(|e| {
@@ -1664,7 +1666,7 @@ impl Mutation {
                 ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
             })?;
 
-        let response: Option<u32> = database_transaction.take(0).map_err(|e| {
+        let response: Option<u32> = database_transaction.take(5).map_err(|e| {
             tracing::error!("Deserialization Error: {:?}", e);
 
             ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()

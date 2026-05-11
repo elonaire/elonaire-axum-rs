@@ -1,12 +1,13 @@
 use async_graphql::{ComplexObject, Enum, InputObject, SimpleObject};
 
+use chrono::{DateTime, Utc};
 use lib::utils::models::{UploadedFileId, UserId};
 use serde::{Deserialize, Serialize};
-use surrealdb::RecordId;
+use surrealdb::types::{RecordId, RecordIdKey, SurrealValue};
 
 use crate::graphql::schemas::shared::Reaction;
 
-#[derive(Clone, Debug, Serialize, Deserialize, InputObject)]
+#[derive(Clone, Debug, Serialize, Deserialize, InputObject, SurrealValue)]
 pub struct BlogPostInput {
     pub title: String,
     pub short_description: String,
@@ -22,7 +23,7 @@ pub struct BlogPostInput {
     pub is_premium: Option<bool>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
+#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject, SurrealValue)]
 #[graphql(complex)]
 pub struct BlogPost {
     #[graphql(skip)]
@@ -39,7 +40,7 @@ pub struct BlogPost {
     pub content: Option<String>,
     pub category: BlogCategory,
     pub link: String,
-    pub published_date: Option<String>,
+    pub published_date: Option<DateTime<Utc>>,
     pub is_featured: Option<bool>,
     pub is_premium: Option<bool>,
     pub comments: Option<Vec<BlogComment>>,
@@ -49,11 +50,11 @@ pub struct BlogPost {
     pub bookmarks_count: Option<u32>,
     pub shares_count: Option<u32>,
     pub current_user_bookmarked: Option<bool>,
-    pub created_at: Option<String>,
-    pub updated_at: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, Enum, Copy, Eq, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, Enum, Copy, Eq, PartialEq, SurrealValue)]
 pub enum BlogStatus {
     #[graphql(name = "Draft")]
     Draft,
@@ -63,7 +64,7 @@ pub enum BlogStatus {
     Archived,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject, InputObject)]
+#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject, InputObject, SurrealValue)]
 #[graphql(input_name = "BlogPostUpdateInput")]
 pub struct BlogPostUpdate {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -89,7 +90,7 @@ pub struct BlogPostUpdate {
 }
 
 // enum for BlogCategory: "WebDevelopment", "MobileDevelopment", "AI", "Technology", "Lifestyle"
-#[derive(Clone, Debug, Serialize, Deserialize, Enum, Copy, Eq, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, Enum, Copy, Eq, PartialEq, SurrealValue)]
 pub enum BlogCategory {
     #[graphql(name = "WebDevelopment")]
     WebDevelopment,
@@ -120,12 +121,12 @@ pub enum BlogCategory {
 }
 
 // BlogComment
-#[derive(Clone, Debug, Serialize, Deserialize, InputObject)]
+#[derive(Clone, Debug, Serialize, Deserialize, InputObject, SurrealValue)]
 pub struct BlogCommentInput {
     pub content: String,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
+#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject, SurrealValue)]
 #[graphql(complex)]
 pub struct BlogComment {
     #[graphql(skip)]
@@ -134,16 +135,19 @@ pub struct BlogComment {
     pub reply_count: u32,
     #[graphql(skip)]
     pub author: UserId,
-    pub created_at: String,
-    pub updated_at: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
     pub current_user_reaction: Option<Reaction>,
     pub reaction_count: Option<u32>,
 }
 
 #[ComplexObject]
 impl BlogPost {
-    async fn id(&self) -> String {
-        self.id.key().to_string()
+    async fn id(&self) -> Option<String> {
+        match &self.id.key {
+            RecordIdKey::String(s) => Some(s.clone()),
+            _ => None,
+        }
     }
 
     async fn content_file(&self) -> String {
@@ -157,8 +161,11 @@ impl BlogPost {
 
 #[ComplexObject]
 impl BlogComment {
-    async fn id(&self) -> String {
-        self.id.key().to_string()
+    async fn id(&self) -> Option<String> {
+        match &self.id.key {
+            RecordIdKey::String(s) => Some(s.clone()),
+            _ => None,
+        }
     }
 
     async fn author(&self) -> String {
@@ -166,7 +173,7 @@ impl BlogComment {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, InputObject)]
+#[derive(Clone, Debug, Serialize, Deserialize, InputObject, SurrealValue)]
 pub struct FetchBlogPostsQueryFilters {
     pub status: Option<BlogStatus>,
     pub is_featured: Option<bool>,
@@ -175,13 +182,13 @@ pub struct FetchBlogPostsQueryFilters {
     pub search_term: Option<String>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, Enum, Copy, Eq, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, Enum, Copy, Eq, PartialEq, SurrealValue)]
 pub enum BlogPostsFilterSortBy {
     DateOfCreation,
     Reads,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, Enum, Copy, Eq, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, Enum, Copy, Eq, PartialEq, SurrealValue)]
 pub enum SortOrder {
     #[graphql(name = "Asc")]
     Asc,
@@ -189,7 +196,7 @@ pub enum SortOrder {
     Desc,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, InputObject)]
+#[derive(Clone, Debug, Serialize, Deserialize, InputObject, SurrealValue)]
 pub struct SortConfigs {
     pub sort_by: BlogPostsFilterSortBy,
     pub sort_order: SortOrder,

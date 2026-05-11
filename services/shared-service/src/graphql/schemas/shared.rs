@@ -1,8 +1,9 @@
 use async_graphql::{ComplexObject, Enum, InputObject, OutputType, SimpleObject};
+use chrono::{DateTime, Utc};
 use lib::utils::models::{ApiResponse, CurrencyId, UploadedFileId};
 use lib::utils::serialization::convert_float_to_string;
 use serde::{Deserialize, Serialize};
-use surrealdb::RecordId;
+use surrealdb::types::{RecordId, RecordIdKey, SurrealValue};
 
 use crate::graphql::schemas::blog::{BlogComment, BlogPost};
 use crate::graphql::schemas::user::{
@@ -17,12 +18,12 @@ type ServiceRates = Vec<ServiceRate>;
 type ServiceRequests = Vec<ServiceRequest>;
 
 // Reaction
-#[derive(Clone, Debug, Serialize, Deserialize, InputObject)]
+#[derive(Clone, Debug, Serialize, Deserialize, InputObject, SurrealValue)]
 pub struct ReactionInput {
     pub r#type: ReactionType,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
+#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject, SurrealValue)]
 #[graphql(complex)]
 pub struct Reaction {
     #[graphql(skip)]
@@ -31,7 +32,7 @@ pub struct Reaction {
 }
 
 // enum for ReactionType
-#[derive(Clone, Debug, Serialize, Deserialize, Enum, Copy, Eq, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, Enum, Copy, Eq, PartialEq, SurrealValue)]
 pub enum ReactionType {
     #[graphql(name = "Like")]
     Like,
@@ -51,21 +52,23 @@ pub enum ReactionType {
 
 #[ComplexObject]
 impl Reaction {
-    async fn id(&self) -> String {
-        self.id.key().to_string()
+    async fn id(&self) -> Option<String> {
+        match &self.id.key {
+            RecordIdKey::String(s) => Some(s.clone()),
+            _ => None,
+        }
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, InputObject)]
+#[derive(Clone, Debug, Serialize, Deserialize, InputObject, SurrealValue)]
 pub struct MessageInput {
     pub subject: Subject,
     pub body: String,
     pub sender_name: String,
     pub sender_email: String,
-    pub created_at: Option<String>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
+#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject, SurrealValue)]
 #[graphql(complex)]
 pub struct Message {
     #[graphql(skip)]
@@ -74,10 +77,10 @@ pub struct Message {
     pub body: String,
     pub sender_name: String,
     pub sender_email: String,
-    pub created_at: String,
+    pub created_at: DateTime<Utc>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, Enum, Copy, Eq, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, Enum, Copy, Eq, PartialEq, SurrealValue)]
 pub enum Subject {
     #[graphql(name = "JobOffer")]
     JobOffer,
@@ -95,12 +98,15 @@ pub enum Subject {
 
 #[ComplexObject]
 impl Message {
-    async fn id(&self) -> String {
-        self.id.key().to_string()
+    async fn id(&self) -> Option<String> {
+        match &self.id.key {
+            RecordIdKey::String(s) => Some(s.clone()),
+            _ => None,
+        }
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, InputObject)]
+#[derive(Clone, Debug, Serialize, Deserialize, InputObject, SurrealValue)]
 pub struct ServiceRateInput {
     #[graphql(skip)]
     pub service: Option<RecordId>,
@@ -110,13 +116,13 @@ pub struct ServiceRateInput {
     pub currency_id: Option<RecordId>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, InputObject)]
+#[derive(Clone, Debug, Serialize, Deserialize, InputObject, SurrealValue)]
 pub struct ServiceRateInputMetadata {
     pub service_id: String,
     pub currency_id: String,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
+#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject, SurrealValue)]
 #[graphql(complex)]
 pub struct ServiceRate {
     #[graphql(skip)]
@@ -126,14 +132,17 @@ pub struct ServiceRate {
     pub base_rate: f64,
     pub hour_week: u8,
     pub currency_id: CurrencyId,
-    pub created_at: String,
-    pub updated_at: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 #[ComplexObject]
 impl ServiceRate {
-    async fn id(&self) -> String {
-        self.id.key().to_string()
+    async fn id(&self) -> Option<String> {
+        match &self.id.key {
+            RecordIdKey::String(s) => Some(s.clone()),
+            _ => None,
+        }
     }
 
     // To prevent loss of precision during serialization and deserialization
@@ -142,35 +151,38 @@ impl ServiceRate {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, InputObject)]
+#[derive(Clone, Debug, Serialize, Deserialize, InputObject, SurrealValue)]
 pub struct RatecardInput {
     pub name: String,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, InputObject)]
+#[derive(Clone, Debug, Serialize, Deserialize, InputObject, SurrealValue)]
 pub struct RatecardInputMetadata {
     pub service_ids: Vec<String>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
+#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject, SurrealValue)]
 #[graphql(complex)]
 pub struct Ratecard {
     #[graphql(skip)]
     pub id: RecordId,
     pub name: String,
     pub services: Vec<UserService>,
-    pub created_at: String,
-    pub updated_at: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 #[ComplexObject]
 impl Ratecard {
-    async fn id(&self) -> String {
-        self.id.key().to_string()
+    async fn id(&self) -> Option<String> {
+        match &self.id.key {
+            RecordIdKey::String(s) => Some(s.clone()),
+            _ => None,
+        }
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, InputObject)]
+#[derive(Clone, Debug, Serialize, Deserialize, InputObject, SurrealValue)]
 pub struct ServiceRequestInput {
     #[graphql(skip)]
     pub supporting_docs: Vec<RecordId>,
@@ -179,33 +191,36 @@ pub struct ServiceRequestInput {
     pub engagement_length: i32,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, InputObject)]
+#[derive(Clone, Debug, Serialize, Deserialize, InputObject, SurrealValue)]
 pub struct ServiceRequestInputMetadata {
     pub supporting_docs_file_ids: Vec<String>,
     pub service_ids: Vec<String>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject)]
+#[derive(Clone, Debug, Serialize, Deserialize, SimpleObject, SurrealValue)]
 #[graphql(complex)]
 pub struct ServiceRequest {
     #[graphql(skip)]
     pub id: RecordId,
     pub supporting_docs: Vec<UploadedFileId>,
     pub description: String,
-    pub start_date: String,
+    pub start_date: DateTime<Utc>,
     pub engagement_length: i32,
-    pub created_at: String,
-    pub updated_at: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 #[ComplexObject]
 impl ServiceRequest {
-    async fn id(&self) -> String {
-        self.id.key().to_string()
+    async fn id(&self) -> Option<String> {
+        match &self.id.key {
+            RecordIdKey::String(s) => Some(s.clone()),
+            _ => None,
+        }
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, Enum, Copy, Eq, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, Enum, Copy, Eq, PartialEq, SurrealValue)]
 pub enum BillingInterval {
     #[graphql(name = "Hourly")]
     Hourly,
