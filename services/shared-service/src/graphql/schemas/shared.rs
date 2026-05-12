@@ -20,7 +20,7 @@ type ServiceRequests = Vec<ServiceRequest>;
 // Reaction
 #[derive(Clone, Debug, Serialize, Deserialize, InputObject, SurrealValue)]
 pub struct ReactionInput {
-    pub r#type: ReactionType,
+    pub reaction_type: ReactionType,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, SimpleObject, SurrealValue)]
@@ -28,7 +28,7 @@ pub struct ReactionInput {
 pub struct Reaction {
     #[graphql(skip)]
     pub id: RecordId,
-    pub r#type: ReactionType,
+    pub reaction_type: ReactionType,
 }
 
 // enum for ReactionType

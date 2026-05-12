@@ -184,8 +184,8 @@ pub struct UserSkillInput {
     pub thumbnail: String,
     pub name: String,
     pub description: String,
-    pub level: Option<UserSkillLevel>,
-    pub r#type: UserSkillType,
+    pub level: UserSkillLevel,
+    pub skill_type: UserSkillType,
     pub start_date: DateTime<Utc>,
 }
 
@@ -197,8 +197,8 @@ pub struct UserSkill {
     pub thumbnail: String,
     pub name: String,
     pub description: String,
-    pub level: Option<UserSkillLevel>,
-    pub r#type: UserSkillType,
+    pub level: UserSkillLevel,
+    pub skill_type: UserSkillType,
     pub start_date: DateTime<Utc>,
 }
 
