@@ -224,7 +224,7 @@ DEFINE TABLE has_reply SCHEMAFULL TYPE RELATION IN comment OUT comment;
 -- A schema-full reaction table.
 DEFINE TABLE OVERWRITE reaction SCHEMAFULL TYPE RELATION IN user_id OUT blog_post | comment;
 -- define some fields.
-DEFINE FIELD OVERWRITE type ON TABLE reaction TYPE
+DEFINE FIELD OVERWRITE reaction_type ON TABLE reaction TYPE
     { Like: object }
   | { Dislike: object }
   | { Love: object }
@@ -267,19 +267,16 @@ DEFINE TABLE skill SCHEMAFULL TYPE NORMAL;
 -- define some fields.
 DEFINE FIELD name ON TABLE skill TYPE string;
 DEFINE FIELD description ON TABLE skill TYPE string;
-DEFINE FIELD OVERWRITE type ON TABLE skill TYPE
+DEFINE FIELD OVERWRITE skill_type ON TABLE skill TYPE
     { Technical: object }
   | { Soft: object };
 DEFINE INDEX skillIndex ON TABLE skill COLUMNS name UNIQUE;
 DEFINE FIELD thumbnail ON TABLE skill TYPE string
   ASSERT string::is_url($value);
-DEFINE FIELD OVERWRITE level ON TABLE skill TYPE option<
-      { Beginner: object }
+DEFINE FIELD OVERWRITE level ON TABLE skill TYPE { Beginner: object }
     | { Intermediate: object }
     | { Advanced: object }
-    | { Expert: object }
-  >
-  DEFAULT NONE;
+    | { Expert: object };
 -- I had to cast this way because the client submits a datetime string and explictly specifying datetime type gives an error
 DEFINE FIELD OVERWRITE start_date ON TABLE skill TYPE datetime VALUE <datetime>$value;
 DEFINE FIELD created_at ON TABLE skill TYPE datetime
@@ -336,70 +333,8 @@ DEFINE FIELD updated_at ON TABLE share TYPE datetime
   VALUE time::now();
 
 /* Migrations */
--- Migration for blog post table
--- UPDATE blog_post SET is_featured = false, is_premium = false WHERE is_featured IS NONE OR is_premium IS NONE;
--- REMOVE FIELD description ON TABLE service_request;
--- REMOVE FIELD start_date ON TABLE service_request;
--- REMOVE FIELD end_date ON TABLE service_request;
--- REMOVE FIELD engagement_length ON TABLE service_request;
-REMOVE FIELD pandascrow_escrow_id ON TABLE service_request;
-REMOVE TABLE pandascrow_escrow_id;
+UPDATE skill SET skill_type = type;
+REMOVE FIELD type ON TABLE skill;
 
-UPDATE portfolio SET category = { JavaScript: {} } WHERE category = 'JavaScript';
-UPDATE portfolio SET category = { Rust: {} } WHERE category = 'Rust';
-UPDATE portfolio SET category = { Database: {} } WHERE category = 'Database';
-UPDATE portfolio SET category = { Cloud: {} } WHERE category = 'Cloud';
-UPDATE portfolio SET category = { DevOps: {} } WHERE category = 'DevOps';
-UPDATE portfolio SET category = { Mobile: {} } WHERE category = 'Mobile';
-
-UPDATE resume SET section = { Education: {} } WHERE section = 'Education';
-UPDATE resume SET section = { Experience: {} } WHERE section = 'Experience';
-UPDATE resume SET section = { Achievements: {} } WHERE section = 'Achievements';
-UPDATE resume SET section = { Projects: {} } WHERE section = 'Projects';
-UPDATE resume SET section = { Certifications: {} } WHERE section = 'Certifications';
-UPDATE resume SET section = { Volunteer: {} } WHERE section = 'Volunteer';
-UPDATE resume SET section = { Publications: {} } WHERE section = 'Publications';
-UPDATE resume SET section = { Languages: {} } WHERE section = 'Languages';
-UPDATE resume SET section = { Interests: {} } WHERE section = 'Interests';
-UPDATE resume SET section = { References: {} } WHERE section = 'References';
-
-UPDATE blog_post SET category = { WebDevelopment: {} } WHERE category = 'WebDevelopment';
-UPDATE blog_post SET category = { MobileDevelopment: {} } WHERE category = 'MobileDevelopment';
-UPDATE blog_post SET category = { ArtificialIntelligence: {} } WHERE category = 'ArtificialIntelligence';
-UPDATE blog_post SET category = { Technology: {} } WHERE category = 'Technology';
-UPDATE blog_post SET category = { Lifestyle: {} } WHERE category = 'Lifestyle';
-UPDATE blog_post SET category = { Science: {} } WHERE category = 'Science';
-UPDATE blog_post SET category = { Health: {} } WHERE category = 'Health';
-UPDATE blog_post SET category = { EmbeddedSystems: {} } WHERE category = 'EmbeddedSystems';
-UPDATE blog_post SET category = { IoT: {} } WHERE category = 'IoT';
-UPDATE blog_post SET category = { UpCloseAndCandid: {} } WHERE category = 'UpCloseAndCandid';
-UPDATE blog_post SET category = { Commentary: {} } WHERE category = 'Commentary';
-UPDATE blog_post SET category = { CyberSecurity: {} } WHERE category = 'CyberSecurity';
-UPDATE blog_post SET category = { Programming: {} } WHERE category = 'Programming';
-
-UPDATE blog_post SET status = { Draft: {} } WHERE status = 'Draft' OR status = NONE;
-UPDATE blog_post SET status = { Published: {} } WHERE status = 'Published';
-UPDATE blog_post SET status = { Archived: {} } WHERE status = 'Archived';
-
-UPDATE reaction SET type = { Like: {} } WHERE type = 'Like';
-UPDATE reaction SET type = { Dislike: {} } WHERE type = 'Dislike';
-UPDATE reaction SET type = { Love: {} } WHERE type = 'Love';
-UPDATE reaction SET type = { Haha: {} } WHERE type = 'Haha';
-UPDATE reaction SET type = { Wow: {} } WHERE type = 'Wow';
-UPDATE reaction SET type = { Sad: {} } WHERE type = 'Sad';
-UPDATE reaction SET type = { Angry: {} } WHERE type = 'Angry';
-
-UPDATE message SET subject = { JobOffer: {} } WHERE subject = 'JobOffer';
-UPDATE message SET subject = { Consultation: {} } WHERE subject = 'Consultation';
-UPDATE message SET subject = { Feedback: {} } WHERE subject = 'Feedback';
-UPDATE message SET subject = { Complaint: {} } WHERE subject = 'Complaint';
-UPDATE message SET subject = { Suggestion: {} } WHERE subject = 'Suggestion';
-UPDATE message SET subject = { Enquiry: {} } WHERE subject = 'Enquiry';
-
-UPDATE skill SET type = { Technical: {} } WHERE type = 'Technical';
-UPDATE skill SET type = { Soft: {} } WHERE type = 'Soft';
-
-UPDATE skill SET level = { Beginner: {} } WHERE level = 'Beginner';
-UPDATE skill SET level = { Intermediate: {} } WHERE level = 'Intermediate';
-UPDATE skill SET level = { Advanced: {} } WHERE level = 'Advanced';
-UPDATE skill SET level = { Expert: {} } WHERE level = 'Expert';
+UPDATE reaction SET reaction_type = type;
+REMOVE FIELD type ON TABLE reaction;
