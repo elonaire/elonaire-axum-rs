@@ -333,8 +333,3 @@ DEFINE FIELD updated_at ON TABLE share TYPE datetime
   VALUE time::now();
 
 /* Migrations */
-UPDATE skill SET skill_type = type;
-REMOVE FIELD type ON TABLE skill;
-
-UPDATE reaction SET reaction_type = type;
-REMOVE FIELD type ON TABLE reaction;
