@@ -4,7 +4,11 @@ use async_graphql::{Context, Object};
 use axum::Extension;
 use hyper::{HeaderMap, StatusCode};
 
-use surrealdb::{engine::remote::ws::Client as SurrealClient, types::RecordId, Surreal};
+use surrealdb::{
+    engine::remote::ws::Client as SurrealClient,
+    types::{Decimal, RecordId},
+    Surreal,
+};
 
 use crate::{
     graphql::schemas::{
@@ -358,7 +362,7 @@ impl Query {
         let mut query_results = db
             .query(
                 r#"
-                LET $billing_rates = (SELECT service.title AS service_title, service.id AS service_id, base_rate AS hourly_rate, base_rate * hour_week AS weekly_rate, base_rate * hour_week * 4 AS monthly_rate, base_rate * hour_week * 4 * 12 AS annual_rate, base_rate * hour_week * 2 AS milestone_rate FROM rate WHERE service.id IN $service_record_ids GROUP BY service_id);
+                LET $billing_rates = (SELECT * FROM billing_rate WHERE service_id IN $service_record_ids.map(|$value| type::record('service', $value)));
 
                 LET $rates_count = array::len($billing_rates);
                 LET $bundle_discount = IF $rates_count > 1 {
@@ -367,16 +371,16 @@ impl Query {
                     1
                 };
 
-                RETURN IF $billing_interval = 'Weekly' {
+                RETURN IF $billing_interval = $weekly {
                     LET $weekly_rates = $billing_rates.map(|$billing_rate| $billing_rate.weekly_rate);
                     math::sum($weekly_rates)*$bundle_discount
-                } ELSE IF $billing_interval = 'Monthly' {
+                } ELSE IF $billing_interval = $monthly {
                     LET $monthly_rates = $billing_rates.map(|$billing_rate| $billing_rate.monthly_rate);
                     math::sum($monthly_rates)*$bundle_discount
-                } ELSE IF $billing_interval = 'Annual' {
+                } ELSE IF $billing_interval = $annual {
                     LET $annual_rates = $billing_rates.map(|$billing_rate| $billing_rate.annual_rate);
                     math::sum($annual_rates)*$bundle_discount
-                } ELSE IF $billing_interval = 'Milestone' {
+                } ELSE IF $billing_interval = $milestone {
                     LET $milestone_rates = $billing_rates.map(|$billing_rate| $billing_rate.milestone_rate);
                     (math::sum($milestone_rates)*$bundle_discount)/(1.5)
                 } ELSE {
@@ -387,26 +391,32 @@ impl Query {
             )
             .bind(("billing_interval", billing_interval))
             .bind(("service_record_ids", service_record_ids))
+            .bind(("weekly", BillingInterval::Weekly))
+            .bind(("monthly", BillingInterval::Monthly))
+            .bind(("annual", BillingInterval::Annual))
+            .bind(("milestone", BillingInterval::Milestone))
             .await
             .map_err(|e| {
                 tracing::error!("Query Error: {:?}", e);
                 ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
             })?;
 
-        let response: Option<f64> = query_results.take(3).map_err(|e| {
+        let response: Option<Decimal> = query_results.take(3).map_err(|e| {
             tracing::error!("billing rate deserialization error: {}", e);
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
 
         match response {
             Some(billing_rate) => {
-                let api_response =
-                    synthesize_graphql_response(ctx, &convert_float_to_string(billing_rate), None)
-                        .ok_or_else(|| {
-                            tracing::error!("Failed to synthesize response!");
-                            ExtendedError::new("Bad Request", StatusCode::BAD_REQUEST.as_str())
-                                .build()
-                        })?;
+                let api_response = synthesize_graphql_response(
+                    ctx,
+                    &convert_float_to_string(billing_rate.as_f64()),
+                    None,
+                )
+                .ok_or_else(|| {
+                    tracing::error!("Failed to synthesize response!");
+                    ExtendedError::new("Bad Request", StatusCode::BAD_REQUEST.as_str()).build()
+                })?;
                 Ok(api_response.into())
             }
             None => Err(ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()),
