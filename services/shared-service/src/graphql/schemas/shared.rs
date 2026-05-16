@@ -3,7 +3,7 @@ use chrono::{DateTime, Utc};
 use lib::utils::models::{ApiResponse, CurrencyId, UploadedFileId};
 use lib::utils::serialization::convert_float_to_string;
 use serde::{Deserialize, Serialize};
-use surrealdb::types::{RecordId, RecordIdKey, SurrealValue};
+use surrealdb::types::{Decimal, RecordId, RecordIdKey, SurrealValue};
 
 use crate::graphql::schemas::blog::{BlogComment, BlogPost};
 use crate::graphql::schemas::user::{
@@ -110,7 +110,7 @@ impl Message {
 pub struct ServiceRateInput {
     #[graphql(skip)]
     pub service: Option<RecordId>,
-    pub base_rate: String,
+    pub base_rate: f64,
     pub hour_week: Option<u8>,
     #[graphql(skip)]
     pub currency_id: Option<RecordId>,
@@ -129,7 +129,7 @@ pub struct ServiceRate {
     pub id: RecordId,
     pub service: UserService,
     #[graphql(skip)]
-    pub base_rate: f64,
+    pub base_rate: Decimal,
     pub hour_week: u8,
     pub currency_id: CurrencyId,
     pub created_at: DateTime<Utc>,
@@ -147,7 +147,7 @@ impl ServiceRate {
 
     // To prevent loss of precision during serialization and deserialization
     async fn base_rate(&self) -> String {
-        convert_float_to_string(self.base_rate)
+        convert_float_to_string(self.base_rate.as_f64())
     }
 }
 

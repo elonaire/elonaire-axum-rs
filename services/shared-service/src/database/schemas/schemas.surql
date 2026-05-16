@@ -150,9 +150,9 @@ DEFINE FIELD updated_at ON TABLE rate TYPE datetime
 
 
 -- This is not working at all, an issue with SurrealDB
--- A schema-full pre-computed billing_rates table view.
--- DEFINE TABLE OVERWRITE billing_rates SCHEMAFULL TYPE NORMAL AS
---     SELECT service.title AS service_title, service.id AS service_id, base_rate AS hourly_rate, base_rate * hour_week AS weekly_rate, base_rate * hour_week * 4 AS monthly_rate, base_rate * hour_week * 4 * 12 AS annual_rate FROM rate GROUP BY service_title;
+-- A schema-full pre-computed billing_rate table view.
+DEFINE TABLE OVERWRITE billing_rate SCHEMAFULL TYPE NORMAL AS
+    SELECT service.title AS service_title, service.id AS service_id, base_rate AS hourly_rate, base_rate * hour_week AS weekly_rate, base_rate * hour_week * 4 AS monthly_rate, base_rate * hour_week * 4 * 12 AS annual_rate, base_rate * hour_week * 2 AS milestone_rate FROM rate GROUP BY service_id, service_title, hourly_rate, weekly_rate, monthly_rate, annual_rate, milestone_rate;
 
 
 -- A schema-full blog post table.
