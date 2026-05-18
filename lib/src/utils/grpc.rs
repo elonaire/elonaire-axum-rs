@@ -261,6 +261,9 @@ pub async fn create_file_from_content(
             let file_id = response.into_inner().file_id;
             Ok(file_id)
         }
-        Err(_e) => Err(StdError::new(ErrorKind::PermissionDenied, "Unauthorized")),
+        Err(e) => {
+            tracing::error!("Error at create_file_from_content: {:?}", e);
+            Err(StdError::new(ErrorKind::PermissionDenied, "Unauthorized"))
+        }
     }
 }
