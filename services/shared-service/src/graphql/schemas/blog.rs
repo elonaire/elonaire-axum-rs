@@ -36,7 +36,7 @@ pub struct BlogPost {
     pub content_file: UploadedFileId,
     pub content_text_only: Option<String>,
     #[graphql(skip)]
-    pub author: UserId,
+    pub author: Option<UserId>,
     pub content: Option<String>,
     pub category: BlogCategory,
     pub link: String,
@@ -154,8 +154,8 @@ impl BlogPost {
         self.content_file.file_id.to_owned()
     }
 
-    async fn author(&self) -> String {
-        self.author.user_id.to_owned()
+    async fn author(&self) -> Option<String> {
+        self.author.as_ref().map(|a| a.user_id.to_owned())
     }
 }
 
