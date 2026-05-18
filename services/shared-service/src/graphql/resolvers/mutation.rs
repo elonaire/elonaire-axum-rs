@@ -619,32 +619,56 @@ impl Mutation {
             .replace('\n', " ");
         blog_post.content_text_only = Some(content_stripped_tags);
 
+        tracing::debug!("blog_post: {:?}", blog_post);
+        tracing::debug!("user_id: {}", added_user.user_id);
+
         let mut database_transaction = db
             .query(
                 "
-            BEGIN TRANSACTION;
-            LET $user = (SELECT VALUE id FROM type::table($table) WHERE user_id = $user_id LIMIT 1);
+                BEGIN TRANSACTION;
+                    LET $user = (
+                        SELECT VALUE id
+                        FROM ONLY user_id
+                        WHERE user_id = $user_id
+                        LIMIT 1
+                    );
+                    LET $blog_post = (
+                        CREATE blog_post CONTENT $blog_post_input RETURN AFTER
+                    );
+                    RELATE $user -> wrote -> $blog_post;
 
-            LET $blog_post = (CREATE blog_post CONTENT $blog_post_input RETURN AFTER)[0];
-            LET $blog_post_id = (SELECT VALUE id FROM ONLY $blog_post);
-            RELATE $user->wrote->$blog_post_id;
+                    LET $full_blog_post = (
+                        SELECT
+                            *,
+                            (
+                                <-wrote<-user_id
+                            )[0].* AS author,
+                            (
+                                SELECT
+                                    *,
+                                    (
+                                        <-wrote<-user_id
+                                    )[0].* AS author,
+                                    array::len(->has_reply) AS reply_count
+                                FROM ->has_comment->comment
+                            ) AS comments
+                        FROM ONLY $blog_post
+                        FETCH content_file
+                    );
+                    RETURN $full_blog_post;
+                COMMIT TRANSACTION;
 
-            LET $full_blog_post = (SELECT *, (<-wrote<-user_id)[0].* AS author, (SELECT *, (<-wrote<-user_id)[0][*] AS author, array::len(->has_reply) AS reply_count FROM ->has_comment->comment) AS comments FROM ONLY $blog_post_id FETCH content_file);
-            RETURN $full_blog_post;
-            COMMIT TRANSACTION;
             ",
             )
             .bind(("blog_post_input", blog_post))
-            .bind(("table", "user_id"))
             .bind(("user_id", added_user.user_id))
-            // .bind(("file_id", added_file.id))
             .await
             .map_err(|e| {
                 tracing::error!("DB Query Error: {}", e);
                 Error::new("Internal Server Error")
             })?;
 
-        let response: Option<blog::BlogPost> = database_transaction.take(6).map_err(|e| {
+        let response: Option<blog::BlogPost> = database_transaction.take(5).map_err(|e| {
             tracing::error!("Deserialization Error: {:?}", e);
 
             ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
