@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{result, sync::Arc};
 
 use async_graphql::{Context, Object};
 use axum::Extension;
@@ -51,23 +51,108 @@ impl Query {
                     .build()
             })?;
 
+        let filters_ref = &filters;
+
         // The trick here is cover all possible filter combinations
         let mut query_result = db
-            .query("
-                (SELECT *, (<-wrote<-user_id)[0][*] AS author, (SELECT *, (<-wrote<-user_id)[0][*] AS author, array::len(->has_reply) AS reply_count FROM ->has_comment->comment) AS comments FROM blog_post WHERE ($filters.search_term != NONE AND (title @0@ $filters.search_term OR content_text_only @1@ $filters.search_term)) OR ($filters.status != NONE AND status = $filters.status AND $filters.is_featured != NONE AND is_featured = $filters.is_featured) OR ($filters.status = NONE AND $filters.is_featured != NONE AND is_featured = $filters.is_featured) OR ($filters.status != NONE AND status = $filters.status AND $filters.is_featured = NONE) ORDER BY relevance DESC
-                 FETCH content_file)
-                ")
-            .bind(("filters", filters))
+            .query(
+                "
+                LET $search_term = $filters.search_term;
+                LET $status = $filters.status;
+                LET $is_featured = $filters.is_featured;
+                (
+                    SELECT
+                        *,
+                        (
+                            <-wrote<-user_id
+                        )[0].* AS author,
+                        (
+                            SELECT
+                                *,
+                                (
+                                    <-wrote<-user_id
+                                )[0].* AS author,
+                                array::len(->has_reply) AS reply_count
+                            FROM ->has_comment->comment
+                        ) AS comments
+                    FROM blog_post
+                    FETCH content_file
+                ).filter(
+                    |$val| {
+                        IF $is_featured != NONE {
+                            $val.is_featured == $is_featured;
+                        } ELSE {
+                            true;
+                        };
+
+
+                    }
+                ).filter(
+                    |$val| {
+                        IF $status != NONE {
+                            $val.status == $status;
+                        } ELSE {
+                            true;
+                        };
+
+
+                    }
+                );
+
+                IF $search_term != NONE {
+                    (
+                        SELECT
+                            *,
+                            (
+                                <-wrote<-user_id
+                            )[0].* AS author,
+                            (
+                                SELECT
+                                    *,
+                                    (
+                                        <-wrote<-user_id
+                                    )[0].* AS author,
+                                    array::len(->has_reply) AS reply_count
+                                FROM ->has_comment->comment
+                            ) AS comments
+                        FROM blog_post
+                        WHERE
+                            (
+                                title @0@ $search_term
+                                OR content_text_only @1@ $search_term
+                            )
+                        FETCH content_file
+                    );
+                };
+                ",
+            )
+            .bind(("filters", filters_ref.clone()))
             .await
             .map_err(|e| {
                 tracing::error!("DB Query error: {}", e);
-                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
+                ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str())
+                    .build()
             })?;
 
-        let mut result: Vec<blog::BlogPost> = query_result.take(0).map_err(|e| {
+        let filter_result: Vec<blog::BlogPost> = query_result.take(3).map_err(|e| {
             tracing::error!("blog_posts deserialization error: {}", e);
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
+
+        let search_result: Vec<blog::BlogPost> = query_result.take(4).map_err(|e| {
+            tracing::error!("blog_posts deserialization error: {}", e);
+            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
+        })?;
+
+        let mut result = if let Some(f) = filters_ref {
+            if f.search_term.is_some() {
+                search_result
+            } else {
+                filter_result
+            }
+        } else {
+            filter_result
+        };
 
         let highlighter = SyntaxHighlighter::new();
 
