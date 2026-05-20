@@ -60,44 +60,6 @@ impl Query {
                 LET $search_term = $filters.search_term;
                 LET $status = $filters.status;
                 LET $is_featured = $filters.is_featured;
-                (
-                    SELECT
-                        *,
-                        (
-                            <-wrote<-user_id
-                        )[0].* AS author,
-                        (
-                            SELECT
-                                *,
-                                (
-                                    <-wrote<-user_id
-                                )[0].* AS author,
-                                array::len(->has_reply) AS reply_count
-                            FROM ->has_comment->comment
-                        ) AS comments
-                    FROM blog_post
-                    FETCH content_file
-                ).filter(
-                    |$val| {
-                        IF $is_featured != NONE {
-                            $val.is_featured == $is_featured;
-                        } ELSE {
-                            true;
-                        };
-
-
-                    }
-                ).filter(
-                    |$val| {
-                        IF $status != NONE {
-                            $val.status == $status;
-                        } ELSE {
-                            true;
-                        };
-
-
-                    }
-                );
 
                 IF $search_term != NONE {
                     (
@@ -122,6 +84,45 @@ impl Query {
                                 OR content_text_only @1@ $search_term
                             )
                         FETCH content_file
+
+
+
+                    );
+                } ELSE {
+                    (
+                        SELECT
+                            *,
+                            (
+                                <-wrote<-user_id
+                            )[0].* AS author,
+                            (
+                                SELECT
+                                    *,
+                                    (
+                                        <-wrote<-user_id
+                                    )[0].* AS author,
+                                    array::len(->has_reply) AS reply_count
+                                FROM ->has_comment->comment
+                            ) AS comments
+                        FROM blog_post
+                        FETCH content_file
+
+                    ).filter(
+                        |$val| {
+                            IF $is_featured != NONE {
+                                $val.is_featured == $is_featured;
+                            } ELSE {
+                                true;
+                            };
+                        }
+                    ).filter(
+                        |$val| {
+                            IF $status != NONE {
+                                $val.status == $status;
+                            } ELSE {
+                                true;
+                            };
+                        }
                     );
                 };
                 ",
@@ -134,25 +135,10 @@ impl Query {
                     .build()
             })?;
 
-        let filter_result: Vec<blog::BlogPost> = query_result.take(3).map_err(|e| {
+        let mut result: Vec<blog::BlogPost> = query_result.take(3).map_err(|e| {
             tracing::error!("blog_posts deserialization error: {}", e);
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
         })?;
-
-        let search_result: Vec<blog::BlogPost> = query_result.take(4).map_err(|e| {
-            tracing::error!("blog_posts deserialization error: {}", e);
-            ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
-        })?;
-
-        let mut result = if let Some(f) = filters_ref {
-            if f.search_term.is_some() {
-                search_result
-            } else {
-                filter_result
-            }
-        } else {
-            filter_result
-        };
 
         let highlighter = SyntaxHighlighter::new();
 
