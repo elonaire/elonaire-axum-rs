@@ -1,6 +1,6 @@
 -- Analyzer
 -- DEFINE ANALYZER blog_content_analyzer TOKENIZERS blank,class,camel,punct FILTERS edgengram(2, 10), lowercase;
-DEFINE ANALYZER blog_post_search_analyzer TOKENIZERS blank, camel, punct FILTERS lowercase;
+DEFINE ANALYZER OVERWRITE blog_post_search_analyzer TOKENIZERS blank, camel, punct, class FILTERS lowercase;
 
 -- A schema-full user_id table
 DEFINE TABLE user_id SCHEMAFULL;
@@ -194,8 +194,8 @@ DEFINE FIELD is_featured ON TABLE blog_post TYPE bool
 DEFINE FIELD is_premium ON TABLE blog_post TYPE bool
   DEFAULT false;
 --Full-text search
-DEFINE INDEX OVERWRITE blogContentSearchIndex ON TABLE blog_post FIELDS content_text_only FULLTEXT ANALYZER blog_post_search_analyzer BM25(1.2,0.75) HIGHLIGHTS;
-DEFINE INDEX blogTitleSearchIndex ON TABLE blog_post FIELDS title FULLTEXT ANALYZER blog_post_search_analyzer BM25(1.2,0.75) HIGHLIGHTS;
+DEFINE INDEX OVERWRITE blogContentSearchIndex ON TABLE blog_post FIELDS content_text_only FULLTEXT ANALYZER blog_post_search_analyzer BM25 HIGHLIGHTS;
+DEFINE INDEX OVERWRITE blogTitleSearchIndex ON TABLE blog_post FIELDS title FULLTEXT ANALYZER blog_post_search_analyzer BM25 HIGHLIGHTS;
 DEFINE FIELD created_at ON TABLE blog_post TYPE datetime
   DEFAULT time::now() READONLY;
 DEFINE FIELD updated_at ON TABLE blog_post TYPE datetime
@@ -333,3 +333,5 @@ DEFINE FIELD updated_at ON TABLE share TYPE datetime
   VALUE time::now();
 
 /* Migrations */
+REBUILD INDEX blogContentSearchIndex ON TABLE blog_post;
+REBUILD INDEX blogTitleSearchIndex ON TABLE blog_post;
