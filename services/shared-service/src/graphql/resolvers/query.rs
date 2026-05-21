@@ -51,7 +51,7 @@ impl Query {
                     .build()
             })?;
 
-        let filters_ref = &filters;
+        let filters_ref = filters.as_ref();
 
         // The trick here is cover all possible filter combinations
         let mut query_result = db
@@ -127,7 +127,7 @@ impl Query {
                 };
                 ",
             )
-            .bind(("filters", filters_ref.clone()))
+            .bind(("filters", filters_ref.cloned()))
             .await
             .map_err(|e| {
                 tracing::error!("DB Query error: {}", e);
