@@ -225,6 +225,8 @@ impl Mutation {
                     .build()
             })?;
 
+        tracing::debug!("portfolio_item: {:?}", portfolio_item);
+
         let headers = ctx.data::<HeaderMap>().map_err(|e| {
             tracing::error!("Error HeaderMap: {:?}", e);
             ExtendedError::new("Server Error", StatusCode::INTERNAL_SERVER_ERROR.as_str()).build()
@@ -267,19 +269,22 @@ impl Mutation {
 
         let mut database_transaction = db
             .query(
-                "
+                r#"
                 BEGIN TRANSACTION;
-                LET $portfolio_item = (SELECT VALUE id FROM ONLY (CREATE portfolio CONTENT $portfolio_item_input RETURN AFTER) LIMIT 1);
+                    LET $portfolio_item = (
+                        CREATE portfolio CONTENT $portfolio_item_input RETURN AFTER
+                    )[0];
+                    FOR $skill IN $skills {
+                        LET $skill_record = type::record('skill', $skill);
 
-                FOR $skill IN $skills {
-                    LET $skill = type::record('skill', $skill);
+                        RELATE $portfolio_item -> uses_skill -> $skill_record;
+                    };
+                    LET $portfolio_id = (SELECT VALUE id FROM ONLY $portfolio_item);
 
-                    RELATE $portfolio_item -> uses_skill -> $skill;
-                };
-                LET $portfolio_item = (SELECT *, ->uses_skill->skill[*] AS skills FROM ONLY $portfolio_item LIMIT 1);
-                RETURN $portfolio_item;
+                    RETURN $portfolio_id;
                 COMMIT TRANSACTION;
-            ",
+
+            "#,
             )
             .bind(("portfolio_item_input", portfolio_item))
             .bind(("skills", skills))
@@ -287,14 +292,35 @@ impl Mutation {
             .map_err(|e| {
                 tracing::error!("DB Query Error: {}", e);
 
-                ExtendedError::new(
-                    "Failed",
-                    StatusCode::BAD_REQUEST.as_str(),
-                )
-                .build()
+                ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
             })?;
 
-        let response: Option<user::UserPortfolio> = database_transaction.take(4).map_err(|e| {
+        let portfolio_id: Option<RecordId> = database_transaction.take(4).map_err(|e| {
+            tracing::error!("Deserialization Error: {:?}", e);
+
+            ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
+        })?;
+
+        let mut database_query = db
+            .query(
+                r#"
+                (
+                    SELECT
+                        *,
+                        ->uses_skill->skill.* AS skills
+                    FROM ONLY portfolio WHERE id = $portfolio_id LIMIT 1
+                )
+            "#,
+            )
+            .bind(("portfolio_id", portfolio_id))
+            .await
+            .map_err(|e| {
+                tracing::error!("DB Query Error: {}", e);
+
+                ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
+            })?;
+
+        let response: Option<user::UserPortfolio> = database_query.take(0).map_err(|e| {
             tracing::error!("Deserialization Error: {:?}", e);
 
             ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
@@ -374,7 +400,7 @@ impl Mutation {
 
         let mut database_transaction = db
             .query(
-                "
+                r#"
             BEGIN TRANSACTION;
             LET $resume = (SELECT VALUE id FROM (CREATE resume CONTENT $resume_item_input RETURN AFTER));
 
@@ -383,10 +409,10 @@ impl Mutation {
                     description: $achievement,
                 };
             };
-            LET $resume = SELECT *, ->achievement.* AS achievements FROM ONLY $resume LIMIT 1;
+
             RETURN $resume;
             COMMIT TRANSACTION;
-            ",
+            "#,
             )
             .bind(("resume_item_input", resume_item))
             .bind(("achievements", achievements))
@@ -401,7 +427,27 @@ impl Mutation {
                 .build()
             })?;
 
-        let response: Option<user::UserResume> = database_transaction.take(4).map_err(|e| {
+        let resume_id: Option<RecordId> = database_transaction.take(3).map_err(|e| {
+            tracing::error!("Deserialization Error: {:?}", e);
+
+            ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
+        })?;
+
+        let mut database_query = db
+            .query(
+                "
+                (SELECT *, ->achievement.* AS achievements FROM ONLY $resume_id)
+            ",
+            )
+            .bind(("resume_id", resume_id))
+            .await
+            .map_err(|e| {
+                tracing::error!("DB Query Error: {}", e);
+
+                ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
+            })?;
+
+        let response: Option<user::UserResume> = database_query.take(0).map_err(|e| {
             tracing::error!("Deserialization Error: {:?}", e);
 
             ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
@@ -619,9 +665,6 @@ impl Mutation {
             .replace('\n', " ");
         blog_post.content_text_only = Some(content_stripped_tags);
 
-        tracing::debug!("blog_post: {:?}", blog_post);
-        tracing::debug!("user_id: {}", added_user.user_id);
-
         let mut database_transaction = db
             .query(
                 "
@@ -637,25 +680,8 @@ impl Mutation {
                     );
                     RELATE $user -> wrote -> $blog_post;
 
-                    LET $full_blog_post = (
-                        SELECT
-                            *,
-                            (
-                                <-wrote<-user_id
-                            )[0].* AS author,
-                            (
-                                SELECT
-                                    *,
-                                    (
-                                        <-wrote<-user_id
-                                    )[0].* AS author,
-                                    array::len(->has_reply) AS reply_count
-                                FROM ->has_comment->comment
-                            ) AS comments
-                        FROM ONLY $blog_post
-                        FETCH content_file
-                    );
-                    RETURN $full_blog_post;
+                    LET $blog_post_id = SELECT VALUE id FROM ONLY $blog_post LIMIT 1;
+                    RETURN $blog_post_id;
                 COMMIT TRANSACTION;
 
             ",
@@ -668,7 +694,43 @@ impl Mutation {
                 Error::new("Internal Server Error")
             })?;
 
-        let response: Option<blog::BlogPost> = database_transaction.take(5).map_err(|e| {
+        let blog_post_id: Option<RecordId> = database_transaction.take(5).map_err(|e| {
+            tracing::error!("Deserialization Error: {:?}", e);
+
+            ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
+        })?;
+
+        let mut database_query = db
+            .query(
+                "
+                (
+                    SELECT
+                        *,
+                        (
+                            <-wrote<-user_id
+                        )[0].* AS author,
+                        (
+                            SELECT
+                                *,
+                                (
+                                    <-wrote<-user_id
+                                )[0].* AS author,
+                                array::len(->has_reply) AS reply_count
+                            FROM ->has_comment->comment
+                        ) AS comments
+                    FROM ONLY $blog_post_id
+                    FETCH content_file
+                )
+            ",
+            )
+            .bind(("blog_post_id", blog_post_id))
+            .await
+            .map_err(|e| {
+                tracing::error!("DB Query Error: {}", e);
+                Error::new("Internal Server Error")
+            })?;
+
+        let response: Option<blog::BlogPost> = database_query.take(0).map_err(|e| {
             tracing::error!("Deserialization Error: {:?}", e);
 
             ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
@@ -748,7 +810,7 @@ impl Mutation {
             RELATE $blog_post->has_comment->$blog_comment_id;
             -- Relate the comment to the user
             RELATE $user->wrote->$blog_comment_id;
-            RETURN (SELECT *, (<-wrote<-user_id)[0][*] AS author, array::len(->has_reply) AS reply_count, array::len(<-reaction) AS reaction_count, (<-reaction<-(user_id WHERE user_id = $user_id))[0][*] AS current_user_reaction FROM $blog_comment);
+            RETURN $blog_comment_id;
             COMMIT TRANSACTION;
             "
         )
@@ -768,7 +830,31 @@ impl Mutation {
             .build()
         })?;
 
-        let response: Option<blog::BlogComment> = database_transaction.take(7).map_err(|e| {
+        let blog_comment_id: Option<RecordId> = database_transaction.take(7).map_err(|e| {
+            tracing::error!("Deserialization Error: {:?}", e);
+
+            ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
+        })?;
+
+        let mut database_query = db
+        .query(
+            "
+            (SELECT *, (<-wrote<-user_id)[0][*] AS author, array::len(->has_reply) AS reply_count, array::len(<-reaction) AS reaction_count, (<-reaction<-(user_id WHERE user_id = $user_id))[0][*] AS current_user_reaction FROM $blog_comment_id)
+            "
+        )
+        .bind(("blog_comment_id", blog_comment_id))
+        .await
+        .map_err(|e| {
+            tracing::error!("DB Query Error: {}", e);
+
+            ExtendedError::new(
+                "Failed",
+                StatusCode::BAD_REQUEST.as_str(),
+            )
+            .build()
+        })?;
+
+        let response: Option<blog::BlogComment> = database_query.take(0).map_err(|e| {
             tracing::error!("Deserialization Error: {:?}", e);
 
             ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
@@ -1244,8 +1330,7 @@ impl Mutation {
                    	RELATE $created_ratecard_id -> contains -> $service_record;
                 };
 
-                LET $full_ratecard = (SELECT *, ->contains->service.* AS services FROM ONLY $created_ratecard_id LIMIT 1);
-                RETURN $full_ratecard;
+                RETURN $created_ratecard_id;
                 COMMIT TRANSACTION;
             ",
             )
@@ -1258,7 +1343,27 @@ impl Mutation {
                 ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
             })?;
 
-        let response: Option<Ratecard> = database_transaction.take(5).map_err(|e| {
+        let created_ratecard_id: Option<RecordId> = database_transaction.take(4).map_err(|e| {
+            tracing::error!("Deserialization Error: {:?}", e);
+
+            ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
+        })?;
+
+        let mut database_query = db
+            .query(
+                "
+                (SELECT *, ->contains->service.* AS services FROM ONLY $created_ratecard_id)
+            ",
+            )
+            .bind(("created_ratecard_id", created_ratecard_id))
+            .await
+            .map_err(|e| {
+                tracing::error!("DB Query Error: {}", e);
+
+                ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
+            })?;
+
+        let response: Option<Ratecard> = database_query.take(0).map_err(|e| {
             tracing::error!("Deserialization Error: {:?}", e);
 
             ExtendedError::new("Failed", StatusCode::BAD_REQUEST.as_str()).build()
