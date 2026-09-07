@@ -1,6 +1,20 @@
 #!/bin/bash
 set -e
 
+# ArgoCD
+kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
+kubectl apply -n argocd --server-side --force-conflicts -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+kubectl patch deployment argocd-server -n argocd --type='strategic' -p='
+spec:
+  template:
+    spec:
+      containers:
+        - name: argocd-server
+          command:
+            - argocd-server
+            - --insecure
+'
+
 # Namespace
 kubectl create namespace techietenka --dry-run=client -o yaml | kubectl apply -f -
 kubectl config set-context --current --namespace=techietenka
