@@ -10,8 +10,9 @@ spec:
     spec:
       containers:
         - name: argocd-server
-          command:
-            - argocd-server
+          command: []
+          args:
+            - /usr/local/bin/argocd-server
             - --insecure
 '
 
